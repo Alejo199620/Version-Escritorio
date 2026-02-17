@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
 from PyQt5.QtGui import QFont, QPixmap, QMovie
 from utils.paths import resource_path
-import os  # <-- IMPORTANTE: Faltaba este import
+import os
 
 
 class Sidebar(QWidget):
@@ -17,8 +17,8 @@ class Sidebar(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setMinimumWidth(180)
-        self.setMaximumWidth(240)
+        self.setMinimumWidth(200)
+        self.setMaximumWidth(260)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
         # Variable para animación
@@ -30,7 +30,7 @@ class Sidebar(QWidget):
         main_container.setStyleSheet(
             """
             QFrame#mainContainer {
-                background-color: #AFCBFF;  /* Fondo azul claro para todo el contenedor */
+                background-color: #AFCBFF;
                 border-radius: 0px;
             }
         """
@@ -43,7 +43,7 @@ class Sidebar(QWidget):
 
         # Logo con imagen
         logo_container = QFrame()
-        logo_container.setFixedHeight(70)
+        logo_container.setFixedHeight(80)
         logo_container.setStyleSheet(
             """
             QFrame {
@@ -53,25 +53,21 @@ class Sidebar(QWidget):
         )
 
         logo_layout = QVBoxLayout(logo_container)
-        logo_layout.setContentsMargins(0, 10, 0, 10)
+        logo_layout.setContentsMargins(0, 15, 0, 15)
         logo_layout.setAlignment(Qt.AlignCenter)
 
-        # ===== CORREGIDO: Cargar imagen correctamente =====
         logo = QLabel()
-
-        # Intentar cargar como PNG primero
         logo_path = resource_path(os.path.join("assets", "logo.png"))
         logo_pixmap = QPixmap(logo_path)
 
         if not logo_pixmap.isNull():
             scaled_pixmap = logo_pixmap.scaled(
-                140, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                160, 60, Qt.KeepAspectRatio, Qt.SmoothTransformation
             )
             logo.setPixmap(scaled_pixmap)
         else:
-            # Si no hay imagen, mostrar texto
             logo.setText("VARCHATE")
-            logo.setFont(QFont("Segoe UI", 16, QFont.Bold))
+            logo.setFont(QFont("Segoe UI", 18, QFont.Bold))
             logo.setStyleSheet(
                 "color: #0099FF; letter-spacing: 1px; background-color: transparent;"
             )
@@ -79,16 +75,20 @@ class Sidebar(QWidget):
         logo.setAlignment(Qt.AlignCenter)
         logo_layout.addWidget(logo)
         container_layout.addWidget(logo_container)
-
+        # Separador
+        separator = QFrame()
+        separator.setFixedHeight(2)
+        separator.setStyleSheet("background-color: #e2e8f0; margin: 15px 20px;")
+        container_layout.addWidget(separator)
         # Espaciador
         spacer = QFrame()
-        spacer.setFixedHeight(10)
+        spacer.setFixedHeight(15)
         spacer.setStyleSheet("background-color: transparent;")
         container_layout.addWidget(spacer)
 
         # Botones con textos completos
         self.buttons = {}
-        self.avatar_label = None  # Guardar referencia al avatar
+        self.avatar_label = None
 
         buttons_data = [
             ("dashboard", "Dashboard"),
@@ -99,28 +99,30 @@ class Sidebar(QWidget):
             ("evaluations", "Evaluaciones"),
         ]
 
-        # Estilo para botones
+        # Estilo MEJORADO para botones - texto centrado, más grande y negrita
         button_style = """
             QPushButton {
-                text-align: left;
-                padding: 14px 20px;
+                text-align: center;
+                padding: 16px 20px;
                 border: none;
                 color: #334155;
-                font-size: 13px;
-                font-weight: 500;
-                min-width: 140px;
-                margin: 2px 8px;
-                border-radius: 8px;
+                font-size: 15px;
+                font-weight: bold;
+                min-width: 160px;
+                margin: 4px 12px;
+                border-radius: 10px;
                 background-color: transparent;
+                letter-spacing: 0.5px;
             }
             QPushButton:hover {
                 background-color: #e6f0ff;
                 color: #0099FF;
+                font-weight: bold;
             }
             QPushButton:checked {
                 background-color: #0099FF;
                 color: white;
-                font-weight: 600;
+                font-weight: bold;
             }
             QPushButton:pressed {
                 background-color: #0077cc;
@@ -138,71 +140,43 @@ class Sidebar(QWidget):
 
         container_layout.addStretch()
 
-        # Separador
-        separator = QFrame()
-        separator.setFixedHeight(1)
-        separator.setStyleSheet("background-color: #e2e8f0; margin: 10px 15px;")
-        container_layout.addWidget(separator)
-
-        # Información del usuario
+        # Información del usuario MEJORADA
         user_info = QFrame()
         user_info.setStyleSheet(
             """
             QFrame {
                 background-color: #eef2f6;
-                margin: 5px 10px;
-                border-radius: 10px;
-                padding: 5px;
+                margin: 8px 15px;
+                border-radius: 15px;
+                padding: 12px;
             }
         """
         )
         user_layout = QVBoxLayout(user_info)
-        user_layout.setContentsMargins(10, 10, 10, 10)
-        user_layout.setSpacing(5)
+        user_layout.setContentsMargins(15, 15, 15, 15)
+        user_layout.setSpacing(8)
 
-        # Avatar con fondo azul
-        self.avatar_label = QLabel("👤")
-        self.avatar_label.setAlignment(Qt.AlignCenter)
-        self.avatar_label.setFont(QFont("Segoe UI", 20))
-        self.avatar_label.setStyleSheet(
-            "color: #0099FF; background-color: transparent;"
-        )
-        user_layout.addWidget(self.avatar_label)
-
-        # Nombre de usuario
-        self.user_name = QLabel("Admin")
-        self.user_name.setAlignment(Qt.AlignCenter)
-        self.user_name.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.user_name.setStyleSheet("color: #1e293b; background-color: transparent;")
-        user_layout.addWidget(self.user_name)
-
-        # Email
-        self.user_email = QLabel("admin@varchate.com")
-        self.user_email.setAlignment(Qt.AlignCenter)
-        self.user_email.setFont(QFont("Segoe UI", 8))
-        self.user_email.setStyleSheet("color: #64748b; background-color: transparent;")
-        user_layout.addWidget(self.user_email)
-
-        container_layout.addWidget(user_info)
-
-        # Cerrar sesión
+        # Cerrar sesión MEJORADO
         self.logout_btn = QPushButton("🚪 Cerrar Sesión")
         self.logout_btn.setCursor(Qt.PointingHandCursor)
         self.logout_btn.setStyleSheet(
             """
             QPushButton {
                 color: #ef4444;
-                border-top: 1px solid #e2e8f0;
-                margin-top: 5px;
+                border-top: 2px solid #e2e8f0;
+                margin-top: 10px;
                 border-radius: 0;
-                font-weight: 500;
+                font-weight: bold;
+                font-size: 14px;
                 background-color: transparent;
-                text-align: left;
-                padding: 14px 20px;
+                text-align: center;
+                padding: 16px 20px;
+                letter-spacing: 0.5px;
             }
             QPushButton:hover {
                 background-color: #dc2626;
                 color: white;
+                font-weight: bold;
             }
         """
         )
@@ -220,13 +194,9 @@ class Sidebar(QWidget):
         self.user_name.setText(nombre)
         self.user_email.setText(email)
 
-        # Actualizar avatar con inicial
         if nombre and len(nombre) > 0:
-            # Usar la primera letra del nombre
             inicial = nombre[0].upper()
             self.avatar_label.setText(inicial)
-
-            # Animación suave al actualizar
             self.animate_avatar_update()
 
     def animate_avatar_update(self):
@@ -249,7 +219,6 @@ class Sidebar(QWidget):
             btn.setChecked(False)
         if page in self.buttons:
             self.buttons[page].setChecked(True)
-            # Pequeña animación de clic
             self.animate_button_click(self.buttons[page])
         self.navigation_changed.emit(page)
 
@@ -275,13 +244,12 @@ class Sidebar(QWidget):
 
     def enterEvent(self, event):
         """Efecto al entrar a la sidebar"""
-        # Animación suave al expandir
-        self.animate_width(180, 200)
+        self.animate_width(200, 220)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         """Efecto al salir de la sidebar"""
-        self.animate_width(200, 180)
+        self.animate_width(220, 200)
         super().leaveEvent(event)
 
     def animate_width(self, start, end):
@@ -293,7 +261,6 @@ class Sidebar(QWidget):
         anim.setEasingCurve(QEasingCurve.OutCubic)
         anim.start()
 
-    # ===== MÉTODO PARA CERRAR SESIÓN =====
     def connect_logout(self, callback):
         """Conectar el botón de logout con una función"""
         self.logout_btn.clicked.connect(callback)
