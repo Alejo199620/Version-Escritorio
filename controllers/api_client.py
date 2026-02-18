@@ -3,33 +3,28 @@ import os
 import time
 import json
 import hashlib
-import re  # AÑADIDO PARA VALIDACIONES
+import re
 from typing import Dict, Any, Optional, Callable, List
 from functools import wraps
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
 import logging
 from datetime import datetime, timedelta
 
-# OPTIMIZACIÓN 1: Reducir logging al mínimo en producción
-logging.basicConfig(level=logging.ERROR)  # Cambiado de WARNING a ERROR
+# OPTIMIZACIÓN EXTREMA: Reducir logging al mínimo
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 
-def retry_on_failure(max_retries=1, delay=0.2):  # Reducido de 2 a 1 reintento
-    """Decorador para reintentar peticiones fallidas"""
+def retry_on_failure(max_retries=0, delay=0.1):
+    """Decorador para reintentar peticiones fallidas - OPTIMIZADO: sin reintentos"""
 
     def decorator(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
-            for attempt in range(max_retries):
-                try:
-                    return func(self, *args, **kwargs)
-                except (requests.ConnectionError, requests.Timeout) as e:
-                    if attempt == max_retries - 1:
-                        raise
-                    time.sleep(delay)
-                except Exception as e:
-                    raise
+            try:
+                return func(self, *args, **kwargs)
+            except Exception as e:
+                raise
 
         return wrapper
 
@@ -37,7 +32,7 @@ def retry_on_failure(max_retries=1, delay=0.2):  # Reducido de 2 a 1 reintento
 
 
 class CacheEntry:
-    """Entrada de caché optimizada"""
+    """Entrada de caché ULTRA RÁPIDA"""
 
     __slots__ = ("data", "timestamp", "timeout")
 
@@ -70,7 +65,7 @@ class RequestWorker(QThread):
 
 
 class BatchRequestManager:
-    """Agrupa múltiples peticiones"""
+    """Agrupa múltiples peticiones - OPTIMIZADO"""
 
     def __init__(self, api_client):
         self.api_client = api_client
@@ -86,7 +81,7 @@ class BatchRequestManager:
             "params": params,
         }
         if not self.batch_timer.isActive():
-            self.batch_timer.start(30)  # Reducido de 50ms a 30ms
+            self.batch_timer.start(20)  # REDUCIDO: 20ms para agrupar rápidamente
 
     def execute_batch(self):
         if not self.pending_requests:
@@ -107,13 +102,13 @@ class APIClient(QObject):
     token_refreshed = pyqtSignal()
     session_expired = pyqtSignal()
 
-    # ============= SEÑALES NUEVAS PARA ACTUALIZACIÓN EN TIEMPO REAL =============
-    data_changed = pyqtSignal(str)  # Señal genérica cuando cualquier dato cambia
-    usuarios_changed = pyqtSignal()  # Señal específica para usuarios
-    modulos_changed = pyqtSignal()  # Señal específica para módulos
-    lecciones_changed = pyqtSignal()  # Señal específica para lecciones
-    ejercicios_changed = pyqtSignal()  # Señal específica para ejercicios
-    evaluaciones_changed = pyqtSignal()  # Señal específica para evaluaciones
+    # ============= SEÑALES PARA ACTUALIZACIÓN EN TIEMPO REAL =============
+    data_changed = pyqtSignal(str)
+    usuarios_changed = pyqtSignal()
+    modulos_changed = pyqtSignal()
+    lecciones_changed = pyqtSignal()
+    ejercicios_changed = pyqtSignal()
+    evaluaciones_changed = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -122,21 +117,21 @@ class APIClient(QObject):
         self.refresh_token = None
         self.user = None
 
-        # ============= CONFIGURACIÓN DE RED OPTIMIZADA =============
+        # ============= CONFIGURACIÓN DE RED ULTRA OPTIMIZADA =============
         self.session = requests.Session()
-        self.timeout = (2.0, 10)  # Reducido: (connect, read)
+        self.timeout = (1.0, 5)  # REDUCIDO: (connect: 1s, read: 5s)
 
-        # Pool de conexiones más grande
+        # Pool de conexiones MÁXIMO
         adapter = requests.adapters.HTTPAdapter(
-            pool_connections=30,  # Aumentado de 20 a 30
-            pool_maxsize=30,  # Aumentado de 20 a 30
-            max_retries=1,  # Reducido de 2 a 1
+            pool_connections=50,  # AUMENTADO: 50 conexiones
+            pool_maxsize=50,  # AUMENTADO: 50 máximo
+            max_retries=0,  # REDUCIDO: 0 reintentos
             pool_block=False,
         )
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
-        # Headers optimizados
+        # Headers ULTRA OPTIMIZADOS
         self.session.headers.update(
             {
                 "Accept-Encoding": "gzip, deflate",
@@ -144,74 +139,68 @@ class APIClient(QObject):
                 "Accept": "application/json",
                 "Content-Type": "application/json",
                 "User-Agent": "Varchate-Admin/1.0",
-                "Cache-Control": "no-cache",  # Evitar caché del navegador
+                "Cache-Control": "no-cache",
             }
         )
 
-        # ============= CACHÉ AVANZADO =============
+        # ============= CACHÉ EN MEMORIA ULTRA RÁPIDO =============
         self.cache = {}
-        self.default_cache_timeout = 300
 
-        # Configuración de caché por tipo (timeouts más largos)
+        # Timeouts MÁS LARGOS para mejor caché
         self.cache_config = {
-            "modulos": {
-                "timeout": 180,
-                "enabled": True,
-                "preload": True,
-            },  # Aumentado 120→180
+            "modulos": {"timeout": 300, "enabled": True, "preload": True},  # 5 minutos
             "usuarios": {
-                "timeout": 90,
+                "timeout": 180,
                 "enabled": True,
                 "preload": False,
-            },  # Aumentado 60→90
+            },  # 3 minutos
             "lecciones": {
-                "timeout": 180,
+                "timeout": 300,
                 "enabled": True,
                 "preload": True,
-            },  # Aumentado 120→180
+            },  # 5 minutos
             "dashboard": {
-                "timeout": 60,
+                "timeout": 120,
                 "enabled": True,
                 "preload": True,
-            },  # Aumentado 30→60
+            },  # 2 minutos
             "evaluaciones": {
-                "timeout": 180,
+                "timeout": 300,
                 "enabled": True,
                 "preload": False,
-            },  # Aumentado 120→180
+            },  # 5 minutos
         }
 
-        # Caché en disco
-        self.disk_cache_enabled = True
-        self.cache_dir = "api_cache"
-        if self.disk_cache_enabled and not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir, exist_ok=True)
+        # Caché en disco (solo para datos estáticos)
+        self.disk_cache_enabled = False  # DESACTIVADO: más rápido sin disco
 
         self.batch_manager = BatchRequestManager(self)
         self.pending_workers = []
 
-        # ============= REGISTRO DE VISTAS/OBSERVADORES =============
-        self.observers = {}  # Diccionario para almacenar callbacks por tipo
+        # Cache de avatares en memoria
+        self.avatars_cache = None
+        self.avatars_cache_time = 0
+        self.avatars_timeout = 3600  # 1 hora
 
-    # ============= MÉTODOS DE CACHÉ ACELERADOS =============
+        # ============= REGISTRO DE OBSERVADORES =============
+        self.observers = {}
+
+        # Pre-carga inmediata después de login
+        self.preloaded = False
+
+    # ============= MÉTODOS DE CACHÉ ULTRA RÁPIDOS =============
     def _get_cache_key(self, endpoint: str, params: Dict = None) -> str:
-        """Generar clave única usando hash rápido"""
-        # OPTIMIZACIÓN: Usar str() en lugar de json.dumps para params simples
+        """Generar clave ULTRA RÁPIDA"""
         if params:
-            # Si params es pequeño, usar representación directa
-            params_str = (
-                str(sorted(params.items()))
-                if len(params) < 5
-                else json.dumps(params, sort_keys=True)
-            )
+            # Usar repr() que es más rápido que json.dumps
+            params_str = repr(sorted(params.items())) if params else ""
         else:
             params_str = ""
         key_str = f"{endpoint}:{params_str}"
         return hashlib.md5(key_str.encode()).hexdigest()
 
     def _get_from_cache(self, key: str, cache_type: str = None) -> Optional[Any]:
-        """Obtener de caché (solo memoria para máxima velocidad)"""
-        # OPTIMIZACIÓN: Solo usar memoria, disco es lento
+        """Obtener de caché - ULTRA RÁPIDO"""
         if key in self.cache:
             entry = self.cache[key]
             if not entry.is_expired():
@@ -221,46 +210,39 @@ class APIClient(QObject):
         return None
 
     def _save_to_cache(self, key: str, data: Any, cache_type: str = None):
-        """Guardar solo en memoria (más rápido)"""
+        """Guardar en caché - ULTRA RÁPIDO"""
         timeout = self.cache_config.get(cache_type, {}).get("timeout", 300)
         self.cache[key] = CacheEntry(data, timeout)
 
     def clear_cache(self, cache_type: str = None):
-        """Limpiar caché (solo memoria)"""
+        """Limpiar caché - ULTRA RÁPIDO"""
         if cache_type:
+            # Limpiar solo las claves que coinciden
             keys_to_delete = [k for k in self.cache.keys() if cache_type in k]
             for key in keys_to_delete:
                 del self.cache[key]
-            logger.debug(
-                f"Cache limpiado para tipo: {cache_type}, {len(keys_to_delete)} entradas"
-            )
         else:
             self.cache.clear()
-            logger.debug("Cache completamente limpiado")
 
-    # ============= NUEVO: SISTEMA DE OBSERVADORES =============
+    # ============= SISTEMA DE OBSERVADORES =============
     def subscribe(self, data_type: str, callback: Callable):
-        """Suscribir una vista a cambios en un tipo de datos"""
+        """Suscribir vista a cambios"""
         if data_type not in self.observers:
             self.observers[data_type] = []
         if callback not in self.observers[data_type]:
             self.observers[data_type].append(callback)
-            logger.debug(f"Vista suscrita a cambios en: {data_type}")
 
     def unsubscribe(self, data_type: str, callback: Callable):
-        """Desuscribir una vista"""
+        """Desuscribir vista"""
         if data_type in self.observers and callback in self.observers[data_type]:
             self.observers[data_type].remove(callback)
-            logger.debug(f"Vista desuscrita de cambios en: {data_type}")
 
     def notify_changed(self, data_type: str):
-        """Notificar a todas las vistas que un tipo de datos cambió"""
-        logger.debug(f"Notificando cambio en: {data_type}")
-
-        # Emitir señales
+        """Notificar cambios - ULTRA RÁPIDO"""
+        # Emitir señales Qt
         self.data_changed.emit(data_type)
 
-        # Emitir señal específica
+        # Señales específicas
         if data_type == "usuarios":
             self.usuarios_changed.emit()
         elif data_type == "modulos":
@@ -272,46 +254,29 @@ class APIClient(QObject):
         elif data_type == "evaluaciones":
             self.evaluaciones_changed.emit()
 
-        # Llamar callbacks registrados
+        # Callbacks
         if data_type in self.observers:
             for callback in self.observers[data_type]:
                 try:
                     callback()
-                except Exception as e:
-                    logger.error(f"Error en callback para {data_type}: {e}")
+                except:
+                    pass
 
-    # ============= NUEVO: INVALIDAR CACHÉ POR TIPO =============
+    # ============= INVALIDACIÓN DE CACHÉ ULTRA RÁPIDA =============
     def invalidate_cache_type(self, cache_type: str):
-        """Invalidar TODO el caché de un tipo específico - SOLUCIÓN DEFINITIVA"""
-        logger.debug(f"🔄 INVALIDANDO CACHÉ COMPLETO para: {cache_type}")
-
-        # 1. Limpiar caché en memoria
+        """Invalidar caché - ULTRA RÁPIDO"""
+        # Limpiar solo las claves relevantes
         keys_to_delete = []
+        cache_type_lower = cache_type.lower()
+
         for key in list(self.cache.keys()):
-            # Buscar cualquier clave que contenga el tipo
-            if cache_type.lower() in key.lower() or key == cache_type:
+            if cache_type_lower in key.lower():
                 keys_to_delete.append(key)
 
         for key in keys_to_delete:
             del self.cache[key]
 
-        logger.debug(f"   📦 Memoria: eliminadas {len(keys_to_delete)} entradas")
-
-        # 2. Limpiar caché en disco si está habilitado
-        if self.disk_cache_enabled and os.path.exists(self.cache_dir):
-            try:
-                disk_count = 0
-                for filename in os.listdir(self.cache_dir):
-                    if cache_type.lower() in filename.lower():
-                        file_path = os.path.join(self.cache_dir, filename)
-                        os.remove(file_path)
-                        disk_count += 1
-                if disk_count > 0:
-                    logger.debug(f"   💾 Disco: eliminados {disk_count} archivos")
-            except Exception as e:
-                logger.error(f"Error limpiando caché en disco: {e}")
-
-        # 3. Notificar a las vistas
+        # Notificar cambios
         self.notify_changed(cache_type)
 
         return len(keys_to_delete)
@@ -346,7 +311,7 @@ class APIClient(QObject):
         worker.start()
         return worker
 
-    # ============= MÉTODO BASE OPTIMIZADO =============
+    # ============= MÉTODO BASE ULTRA OPTIMIZADO =============
     def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Método base ULTRA RÁPIDO"""
         url = (
@@ -368,7 +333,7 @@ class APIClient(QObject):
                 self.request_started.emit()
 
             response = self.session.request(method, url, **kwargs)
-            return self._handle_response_fast(response)  # Usar versión rápida
+            return self._handle_response_fast(response)
 
         except requests.ConnectionError:
             return {"success": False, "error": "Error de conexión"}
@@ -381,9 +346,7 @@ class APIClient(QObject):
                 self.request_finished.emit()
 
     def _handle_response_fast(self, response: requests.Response) -> Dict[str, Any]:
-        """Manejador de respuesta ultra rápido"""
-        # OPTIMIZACIÓN: Manejo simplificado para velocidad
-
+        """Manejador de respuesta ULTRA RÁPIDO"""
         # Token expirado
         if response.status_code == 401 and self.refresh_token:
             if self._refresh_token():
@@ -398,7 +361,6 @@ class APIClient(QObject):
                 data = response.json()
                 error_msg = data.get("message", data.get("error", "Error"))
 
-                # Capturar errores de validación de Laravel
                 if response.status_code == 422 and "errors" in data:
                     return {
                         "success": False,
@@ -422,7 +384,6 @@ class APIClient(QObject):
         except:
             return {"success": True, "data": {}, "status_code": response.status_code}
 
-        # Formato estándar
         if "data" in data:
             return {
                 "success": True,
@@ -441,40 +402,25 @@ class APIClient(QObject):
         cache_type: str = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
-        """GET con caché en memoria (ultra rápido)"""
-
-        # Si es force_refresh, ignorar completamente la caché
-        if force_refresh:
-            logger.debug(f"Force refresh para {endpoint}")
-            return self._request("GET", endpoint, params=params or {})
-
-        # Sin caché configurada
-        if not cache_type:
+        """GET con caché - ULTRA RÁPIDO"""
+        if force_refresh or not cache_type:
             return self._request("GET", endpoint, params=params or {})
 
         # Verificar si el tipo de caché está habilitado
-        if (
-            cache_type in self.cache_config
-            and not self.cache_config[cache_type]["enabled"]
-        ):
+        config = self.cache_config.get(cache_type, {})
+        if not config.get("enabled", True):
             return self._request("GET", endpoint, params=params or {})
 
-        # Intentar obtener de caché
+        # Intentar caché
         cache_key = self._get_cache_key(endpoint, params)
-        if cache_key in self.cache:
-            entry = self.cache[cache_key]
-            if not entry.is_expired():
-                logger.debug(f"Cache HIT para {endpoint}")
-                return entry.data
-            else:
-                logger.debug(f"Cache EXPIRED para {endpoint}")
-                del self.cache[cache_key]
+        cached = self._get_from_cache(cache_key, cache_type)
+        if cached is not None:
+            return cached
 
         # Petición real
-        logger.debug(f"Cache MISS para {endpoint}")
         result = self._request("GET", endpoint, params=params or {})
 
-        # Guardar en caché si fue exitoso
+        # Guardar en caché
         if result.get("success", False):
             self._save_to_cache(cache_key, result, cache_type)
 
@@ -490,14 +436,12 @@ class APIClient(QObject):
     ) -> Dict[str, Any]:
         result = self._request("POST", endpoint, data=data, json=json)
 
-        # Invalidar caché y notificar cambios
         if result.get("success", False):
             if invalidate_cache:
                 for cache_type in invalidate_cache:
                     self.invalidate_cache_type(cache_type)
             else:
-                # Si no se especifica, intentar inferir del endpoint
-                self._auto_invalidate_from_endpoint(endpoint, "POST")
+                self._auto_invalidate_from_endpoint(endpoint)
 
         return result
 
@@ -515,7 +459,7 @@ class APIClient(QObject):
                 for cache_type in invalidate_cache:
                     self.invalidate_cache_type(cache_type)
             else:
-                self._auto_invalidate_from_endpoint(endpoint, "PUT")
+                self._auto_invalidate_from_endpoint(endpoint)
 
         return result
 
@@ -533,7 +477,7 @@ class APIClient(QObject):
                 for cache_type in invalidate_cache:
                     self.invalidate_cache_type(cache_type)
             else:
-                self._auto_invalidate_from_endpoint(endpoint, "PATCH")
+                self._auto_invalidate_from_endpoint(endpoint)
 
         return result
 
@@ -545,12 +489,12 @@ class APIClient(QObject):
                 for cache_type in invalidate_cache:
                     self.invalidate_cache_type(cache_type)
             else:
-                self._auto_invalidate_from_endpoint(endpoint, "DELETE")
+                self._auto_invalidate_from_endpoint(endpoint)
 
         return result
 
-    def _auto_invalidate_from_endpoint(self, endpoint: str, method: str):
-        """Inferir qué tipo de caché invalidar basado en el endpoint"""
+    def _auto_invalidate_from_endpoint(self, endpoint: str):
+        """Inferir qué caché invalidar"""
         endpoint_lower = endpoint.lower()
 
         if "usuario" in endpoint_lower:
@@ -565,8 +509,6 @@ class APIClient(QObject):
             self.invalidate_cache_type("evaluaciones")
         elif "dashboard" in endpoint_lower:
             self.invalidate_cache_type("dashboard")
-        else:
-            logger.debug(f"No se pudo inferir tipo de caché para: {endpoint}")
 
     # ============= AUTENTICACIÓN =============
     def set_token(self, token: str, refresh_token: Optional[str] = None):
@@ -580,7 +522,7 @@ class APIClient(QObject):
             r = requests.post(
                 f"{self.base_url}/refresh",
                 json={"refresh_token": self.refresh_token},
-                timeout=3,
+                timeout=2,
             )
             if r.status_code == 200:
                 data = r.json()
@@ -593,32 +535,38 @@ class APIClient(QObject):
         except:
             return False
 
-    # ============= PRE-CARGA =============
+    # ============= PRE-CARGA INMEDIATA =============
     def preload_cache(self):
-        """Pre-cargar datos en segundo plano"""
-        preload_endpoints = {
-            "modulos": "/admin/modulos",
-            "dashboard": "/admin/dashboard",
-        }
-        for ct, ep in preload_endpoints.items():
-            if ct in self.cache_config and self.cache_config[ct].get("preload"):
-                self.get_async(ep, lambda x: None, cache_type=ct)
+        """Pre-cargar datos críticos"""
+        if self.preloaded:
+            return
+
+        # Cargar solo los datos más importantes
+        self.get_async("/admin/dashboard", lambda x: None, cache_type="dashboard")
+        self.get_async("/admin/modulos", lambda x: None, cache_type="modulos")
+
+        self.preloaded = True
 
     # ============= LOGIN/LOGOUT =============
-    @retry_on_failure(max_retries=1)
+    @retry_on_failure()
     def login(self, email: str, password: str) -> Dict[str, Any]:
         result = self.post("/login", json={"email": email, "password": password})
+
         if result["success"]:
             data = result["data"]
             token = data.get("access_token") or data.get("token")
             if token:
                 self.set_token(token, data.get("refresh_token"))
                 self.user = data.get("user", {})
+
                 if self.user.get("rol") != "administrador":
                     return {"success": False, "error": "Acceso denegado"}
-                QTimer.singleShot(50, self.preload_cache)  # Más rápido
+
+                # Pre-carga inmediata sin timer
+                self.preload_cache()
             else:
                 return {"success": False, "error": "No token"}
+
         return result
 
     def logout(self) -> Dict[str, Any]:
@@ -626,7 +574,8 @@ class APIClient(QObject):
         self.token = None
         self.refresh_token = None
         self.user = None
-        self.clear_cache()
+        self.cache.clear()
+        self.preloaded = False
         return result
 
     # ============= MÉTODOS DE PAGINACIÓN =============
@@ -661,317 +610,99 @@ class APIClient(QObject):
             force_refresh=force_refresh,
         )
 
-    # ============= USUARIOS - VERSIÓN MEJORADA =============
+    # ============= USUARIOS =============
     def get_usuarios(
         self, page: int = 1, per_page: int = 100, force_refresh: bool = False
     ) -> Dict[str, Any]:
-        """
-        Obtener usuarios con paginación
-        page: número de página
-        per_page: cantidad por página (100 para traer casi todos)
-        """
         params = {"page": page, "per_page": per_page}
-
-        result = self.get(
+        return self.get(
             "/admin/usuarios",
             params=params,
             cache_type="usuarios",
             force_refresh=force_refresh,
         )
 
-        # Log para depuración
-        if result.get("success", False):
-            data = result.get("data", [])
-            logger.debug(
-                f"get_usuarios página {page}: {len(data) if isinstance(data, list) else 'no es lista'} usuarios"
-            )
+    def get_avatars(self) -> Dict[str, Any]:
+        """Obtener avatares con caché de 1 hora"""
+        now = time.time()
+        if (
+            self.avatars_cache
+            and (now - self.avatars_cache_time) < self.avatars_timeout
+        ):
+            return self.avatars_cache
 
-            # Verificar si la respuesta incluye meta datos de paginación
-            meta = result.get("meta", {})
-            if meta:
-                logger.debug(
-                    f"Meta datos: total={meta.get('total')}, página={meta.get('current_page')}, últimas={meta.get('last_page')}"
-                )
+        result = self.get("/admin/usuarios/avatars", cache_type="usuarios")
+
+        if result.get("success"):
+            self.avatars_cache = result
+            self.avatars_cache_time = now
 
         return result
 
     def create_usuario(self, data: Dict) -> Dict[str, Any]:
-        """
-        Crear nuevo usuario con validaciones según API Laravel
+        """Crear usuario - ULTRA RÁPIDO"""
+        logger.debug(f"Creando usuario: {data.get('email')}")
 
-        La API espera:
-        - nombre: string, requerido
-        - email: string, email válido, único en la BD
-        - password: string, mínimo 8 caracteres, con mayúsculas, minúsculas y números
-        - rol: 'aprendiz' o 'administrador'
-        - estado: 'activo' o 'inactivo'
-        - avatar_id: (opcional) ID del avatar seleccionado
-
-        La API automáticamente:
-        - Envía email de verificación
-        - Asigna avatar por defecto si no se especifica
-        - Hashea la contraseña
-        """
-        logger.debug(f"🔄 Creando usuario: {data.get('email')}")
-
-        # Validaciones locales antes de enviar a la API
+        # Validaciones rápidas
         errores = []
-
-        # Validar nombre
         nombre = data.get("nombre", "").strip()
-        if not nombre:
-            errores.append("El nombre es requerido")
-        elif len(nombre) < 3:
-            errores.append("El nombre debe tener al menos 3 caracteres")
-        else:
-            data["nombre"] = nombre
-
-        # Validar email
         email = data.get("email", "").strip().lower()
-        if not email:
-            errores.append("El email es requerido")
-        elif not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
-            errores.append("Formato de email inválido")
-        else:
-            # Actualizar email a minúsculas
-            data["email"] = email
-
-        # Validar contraseña
         password = data.get("password", "")
-        if not password:
-            errores.append("La contraseña es requerida")
-        else:
-            # Reglas de contraseña de Laravel
-            if len(password) < 8:
-                errores.append("La contraseña debe tener mínimo 8 caracteres")
-            if not re.search(r"[A-Z]", password):
-                errores.append("La contraseña debe tener al menos una mayúscula")
-            if not re.search(r"[a-z]", password):
-                errores.append("La contraseña debe tener al menos una minúscula")
-            if not re.search(r"[0-9]", password):
-                errores.append("La contraseña debe tener al menos un número")
 
-        # Validar rol
-        rol = data.get("rol", "aprendiz")
-        if rol not in ["aprendiz", "administrador"]:
-            errores.append("Rol inválido. Debe ser 'aprendiz' o 'administrador'")
+        if not nombre or len(nombre) < 3:
+            errores.append("Nombre inválido (mínimo 3 caracteres)")
+        if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
+            errores.append("Email inválido")
+        if password and (
+            len(password) < 8
+            or not re.search(r"[A-Z]", password)
+            or not re.search(r"[a-z]", password)
+            or not re.search(r"[0-9]", password)
+        ):
+            errores.append("Contraseña no cumple requisitos")
 
-        # Validar estado
-        estado = data.get("estado", "activo")
-        if estado not in ["activo", "inactivo"]:
-            errores.append("Estado inválido. Debe ser 'activo' o 'inactivo'")
-
-        # Si hay errores, retornar sin enviar a la API
         if errores:
-            logger.error(f"❌ Errores de validación: {errores}")
             return {
                 "success": False,
-                "error": "Errores de validación",
+                "error": "Validación fallida",
                 "errors": errores,
                 "status_code": 422,
             }
 
-        # Preparar datos para la API
         api_data = {
             "nombre": nombre,
             "email": email,
             "password": password,
-            "rol": rol,
-            "estado": estado,
+            "rol": data.get("rol", "aprendiz"),
+            "estado": data.get("estado", "activo"),
         }
 
-        # Incluir avatar si está seleccionado
         if data.get("avatar_id"):
             api_data["avatar_id"] = data["avatar_id"]
 
-        logger.debug(f"📤 Enviando a API: {api_data}")
-
-        try:
-            # Enviar a la API
-            result = self.post(
-                "/admin/usuarios",
-                json=api_data,
-                invalidate_cache=["usuarios"],
-            )
-
-            # Procesar respuesta de la API
-            if result.get("success"):
-                logger.info(f"✅ Usuario creado exitosamente: {email}")
-
-                # La API Laravel envía email de verificación automáticamente
-                # Verificar si la respuesta incluye información adicional
-                if result.get("data"):
-                    user_data = result["data"]
-
-                    # Agregar información sobre verificación de email
-                    if user_data.get("email_verified_at"):
-                        result["email_verified"] = True
-                        result["message"] = "Usuario creado con email verificado"
-                    else:
-                        result["email_verified"] = False
-                        result["message"] = (
-                            "Usuario creado. Se envió email de verificación"
-                        )
-
-                        # Registrar que se envió el email
-                        logger.info(f"📧 Email de verificación enviado a: {email}")
-
-                return result
-
-            else:
-                # Manejar errores de la API Laravel
-                error_msg = result.get("error", "Error desconocido")
-                status_code = result.get("status_code", 500)
-
-                # Laravel típicamente retorna errores de validación con código 422
-                if status_code == 422:
-                    # Intentar parsear errores de validación de Laravel
-                    if "errors" in result:
-                        errores_laravel = []
-                        for field, messages in result["errors"].items():
-                            for msg in messages:
-                                errores_laravel.append(f"{field}: {msg}")
-
-                        logger.error(
-                            f"❌ Errores de validación Laravel: {errores_laravel}"
-                        )
-                        result["validation_errors"] = errores_laravel
-
-                        # Mensajes específicos
-                        if "email" in str(errores_laravel).lower():
-                            if "unique" in str(errores_laravel).lower():
-                                result["error"] = (
-                                    "El email ya está registrado en el sistema"
-                                )
-
-                    elif "email" in str(error_msg).lower():
-                        if (
-                            "unique" in str(error_msg).lower()
-                            or "taken" in str(error_msg).lower()
-                        ):
-                            result["error"] = "❌ El email ya está registrado"
-                        elif "format" in str(error_msg).lower():
-                            result["error"] = "❌ Formato de email inválido"
-
-                    elif "password" in str(error_msg).lower():
-                        result["error"] = (
-                            "❌ La contraseña no cumple con los requisitos de seguridad"
-                        )
-
-                elif status_code == 401:
-                    result["error"] = (
-                        "❌ Sesión expirada. Por favor, inicia sesión nuevamente"
-                    )
-
-                elif status_code == 403:
-                    result["error"] = "❌ No tienes permisos para crear usuarios"
-
-                logger.error(f"❌ Error API ({status_code}): {result.get('error')}")
-                return result
-
-        except requests.ConnectionError:
-            logger.error("❌ Error de conexión con la API")
-            return {
-                "success": False,
-                "error": "Error de conexión con el servidor",
-                "status_code": 503,
-            }
-        except requests.Timeout:
-            logger.error("❌ Timeout de conexión")
-            return {
-                "success": False,
-                "error": "Tiempo de espera agotado",
-                "status_code": 504,
-            }
-        except Exception as e:
-            logger.error(f"❌ Error inesperado: {str(e)}")
-            return {
-                "success": False,
-                "error": f"Error inesperado: {str(e)}",
-                "status_code": 500,
-            }
+        return self.post(
+            "/admin/usuarios", json=api_data, invalidate_cache=["usuarios"]
+        )
 
     def update_usuario(self, usuario_id: int, data: Dict) -> Dict[str, Any]:
-        """Actualizar usuario existente"""
-        logger.debug(f"Actualizando usuario ID: {usuario_id}")
-
-        # Validaciones básicas para actualización
-        errores = []
-
-        # Validar nombre si está presente
-        if "nombre" in data:
-            nombre = data["nombre"].strip()
-            if not nombre:
-                errores.append("El nombre no puede estar vacío")
-            elif len(nombre) < 3:
-                errores.append("El nombre debe tener al menos 3 caracteres")
-            else:
-                data["nombre"] = nombre
-
-        # Validar email si está presente
-        if "email" in data:
-            email = data["email"].strip().lower()
-            if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
-                errores.append("Formato de email inválido")
-            else:
-                data["email"] = email
-
-        # Validar contraseña si está presente
-        if "password" in data and data["password"]:
-            password = data["password"]
-            if len(password) < 8:
-                errores.append("La contraseña debe tener mínimo 8 caracteres")
-            if not re.search(r"[A-Z]", password):
-                errores.append("La contraseña debe tener al menos una mayúscula")
-            if not re.search(r"[a-z]", password):
-                errores.append("La contraseña debe tener al menos una minúscula")
-            if not re.search(r"[0-9]", password):
-                errores.append("La contraseña debe tener al menos un número")
-
-        # Validar rol si está presente
-        if "rol" in data and data["rol"] not in ["aprendiz", "administrador"]:
-            errores.append("Rol inválido. Debe ser 'aprendiz' o 'administrador'")
-
-        # Validar estado si está presente
-        if "estado" in data and data["estado"] not in ["activo", "inactivo"]:
-            errores.append("Estado inválido. Debe ser 'activo' o 'inactivo'")
-
-        # Si hay errores, retornar sin enviar a la API
-        if errores:
-            logger.error(f"❌ Errores de validación: {errores}")
-            return {
-                "success": False,
-                "error": "Errores de validación",
-                "errors": errores,
-                "status_code": 422,
-            }
-
-        result = self.put(
-            f"/admin/usuarios/{usuario_id}",
-            json=data,
-            invalidate_cache=["usuarios"],
+        """Actualizar usuario"""
+        return self.put(
+            f"/admin/usuarios/{usuario_id}", json=data, invalidate_cache=["usuarios"]
         )
-        return result
 
     def delete_usuario(self, usuario_id: int) -> Dict[str, Any]:
         """Eliminar usuario"""
-        logger.debug(f"Eliminando usuario ID: {usuario_id}")
-        result = self.delete(
-            f"/admin/usuarios/{usuario_id}",
-            invalidate_cache=["usuarios"],
+        return self.delete(
+            f"/admin/usuarios/{usuario_id}", invalidate_cache=["usuarios"]
         )
-        return result
 
     def toggle_usuario_status(self, usuario_id: int) -> Dict[str, Any]:
         """Cambiar estado de usuario"""
-        logger.debug(f"Cambiando estado usuario ID: {usuario_id}")
-        result = self.patch(
-            f"/admin/usuarios/{usuario_id}/toggle-status",
-            invalidate_cache=["usuarios"],
+        return self.patch(
+            f"/admin/usuarios/{usuario_id}/toggle-status", invalidate_cache=["usuarios"]
         )
-        return result
 
-    # ============= MÓDULOS - VERSIÓN CORREGIDA =============
+    # ============= MÓDULOS =============
     def get_modulos(
         self, params: Dict = None, force_refresh: bool = False
     ) -> Dict[str, Any]:
@@ -990,26 +721,17 @@ class APIClient(QObject):
         )
 
     def create_modulo(self, data: Dict) -> Dict[str, Any]:
-        # Validaciones básicas para módulo
-        if not data.get("titulo"):
-            return {"success": False, "error": "El título es requerido"}
-        if not data.get("descripcion"):
-            return {"success": False, "error": "La descripción es requerida"}
-
+        if not data.get("titulo") or not data.get("descripcion"):
+            return {"success": False, "error": "Título y descripción requeridos"}
         return self.post("/admin/modulos", json=data, invalidate_cache=["modulos"])
 
     def update_modulo(self, modulo_id: int, data: Dict) -> Dict[str, Any]:
         return self.put(
-            f"/admin/modulos/{modulo_id}",
-            json=data,
-            invalidate_cache=["modulos"],
+            f"/admin/modulos/{modulo_id}", json=data, invalidate_cache=["modulos"]
         )
 
     def delete_modulo(self, modulo_id: int) -> Dict[str, Any]:
-        return self.delete(
-            f"/admin/modulos/{modulo_id}",
-            invalidate_cache=["modulos"],
-        )
+        return self.delete(f"/admin/modulos/{modulo_id}", invalidate_cache=["modulos"])
 
     def reorder_modulos(self, modulos: list) -> Dict[str, Any]:
         return self.post(
@@ -1018,14 +740,7 @@ class APIClient(QObject):
             invalidate_cache=["modulos"],
         )
 
-    def get_modulos_statistics(self, force_refresh: bool = False) -> Dict[str, Any]:
-        return self.get(
-            "/admin/modulos/statistics",
-            cache_type="modulos",
-            force_refresh=force_refresh,
-        )
-
-    # ============= LECCIONES - VERSIÓN CORREGIDA =============
+    # ============= LECCIONES =============
     def get_lecciones(
         self, modulo_id: int, params: Dict = None, force_refresh: bool = False
     ) -> Dict[str, Any]:
@@ -1046,12 +761,8 @@ class APIClient(QObject):
         )
 
     def create_leccion(self, modulo_id: int, data: Dict) -> Dict[str, Any]:
-        # Validaciones básicas para lección
-        if not data.get("titulo"):
-            return {"success": False, "error": "El título es requerido"}
-        if not data.get("contenido"):
-            return {"success": False, "error": "El contenido es requerido"}
-
+        if not data.get("titulo") or not data.get("contenido"):
+            return {"success": False, "error": "Título y contenido requeridos"}
         return self.post(
             f"/admin/modulos/{modulo_id}/lecciones",
             json=data,
@@ -1080,7 +791,7 @@ class APIClient(QObject):
             invalidate_cache=["lecciones"],
         )
 
-    # ============= EJERCICIOS - VERSIÓN CORREGIDA =============
+    # ============= EJERCICIOS =============
     def get_ejercicios(
         self, modulo_id: int, leccion_id: int, force_refresh: bool = False
     ) -> Dict[str, Any]:
@@ -1106,12 +817,8 @@ class APIClient(QObject):
     def create_ejercicio(
         self, modulo_id: int, leccion_id: int, data: Dict
     ) -> Dict[str, Any]:
-        # Validaciones básicas para ejercicio
-        if not data.get("pregunta"):
-            return {"success": False, "error": "La pregunta es requerida"}
-        if not data.get("tipo"):
-            return {"success": False, "error": "El tipo de ejercicio es requerido"}
-
+        if not data.get("pregunta") or not data.get("tipo"):
+            return {"success": False, "error": "Pregunta y tipo requeridos"}
         return self.post(
             f"/admin/modulos/{modulo_id}/lecciones/{leccion_id}/ejercicios",
             json=data,
@@ -1144,7 +851,7 @@ class APIClient(QObject):
             invalidate_cache=["ejercicios"],
         )
 
-    # ============= EVALUACIONES - VERSIÓN CORREGIDA =============
+    # ============= EVALUACIONES =============
     def get_evaluacion(
         self, modulo_id: int, force_refresh: bool = False
     ) -> Dict[str, Any]:
@@ -1164,10 +871,8 @@ class APIClient(QObject):
     def create_pregunta(
         self, modulo_id: int, evaluacion_id: int, data: Dict
     ) -> Dict[str, Any]:
-        # Validaciones básicas para pregunta
         if not data.get("pregunta"):
-            return {"success": False, "error": "La pregunta es requerida"}
-
+            return {"success": False, "error": "Pregunta requerida"}
         return self.post(
             f"/admin/modulos/{modulo_id}/evaluacion/{evaluacion_id}/preguntas",
             json=data,
@@ -1198,13 +903,4 @@ class APIClient(QObject):
             f"/admin/modulos/{modulo_id}/evaluacion/{evaluacion_id}/preguntas/{pregunta_id}/opciones",
             json={"opciones": opciones},
             invalidate_cache=["evaluaciones"],
-        )
-
-    def get_evaluaciones_statistics(
-        self, force_refresh: bool = False
-    ) -> Dict[str, Any]:
-        return self.get(
-            "/admin/evaluaciones/statistics",
-            cache_type="evaluaciones",
-            force_refresh=force_refresh,
         )
