@@ -47,6 +47,10 @@ class EvaluationConfigDialog(QDialog):
 
         if config_data:
             self.load_config_data()
+        else:
+            # Si no hay datos, establecer título por defecto
+            self.titulo_input.setText(f"Evaluación del Módulo")
+            self.actualizar_resumen()
 
     def setup_ui(self):
         self.setStyleSheet(
@@ -239,6 +243,23 @@ class EvaluationConfigDialog(QDialog):
             self.estado_combo.setCurrentIndex(index)
 
         self.actualizar_resumen()
+
+    def get_data(self):
+        """Obtener datos del formulario - AHORA INCLUYE TÍTULO"""
+        titulo = self.titulo_input.text().strip()
+        if not titulo:
+            # Si está vacío, usar título por defecto
+            titulo = f"Evaluación del Módulo {self.modulo_id}"
+
+        return {
+            "titulo": titulo,  # ¡IMPORTANTE! Este campo debe enviarse
+            "descripcion": self.descripcion_input.toPlainText(),
+            "numero_preguntas": self.num_preguntas_input.value(),
+            "tiempo_limite": self.tiempo_input.value(),
+            "puntaje_minimo": self.puntaje_input.value(),
+            "max_intentos": self.intentos_input.value(),
+            "estado": self.estado_combo.currentText(),
+        }
 
     def get_data(self):
         """Obtener datos del formulario"""

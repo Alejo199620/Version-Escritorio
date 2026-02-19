@@ -24,12 +24,12 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QSizePolicy,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QColor
 import logging
 
 from views.components.rich_text_editor import RichTextEditor
-from views.exercises_view import ExerciseDialog
+from views.exercises_view import ExerciseDialog  # <-- IMPORTANTE: esta importación
 from utils.paths import resource_path
 
 logging.basicConfig(level=logging.DEBUG)
@@ -164,7 +164,9 @@ class LessonDialog(QDialog):
 
         if lesson_data:
             self.load_lesson_data()
-            self.cargar_ejercicios()
+            # Si tiene ejercicios, cargarlos después de un pequeño delay
+            if lesson_data.get("tiene_ejercicios", False):
+                QTimer.singleShot(100, self.cargar_ejercicios)
 
     def setup_ui(self):
         self.setStyleSheet(
@@ -283,18 +285,40 @@ class LessonDialog(QDialog):
         self.add_exercise_btn.clicked.connect(self.nuevo_ejercicio)
         exercises_toolbar.addWidget(self.add_exercise_btn)
 
+        self.refresh_exercises_btn = QPushButton("🔄")
+        self.refresh_exercises_btn.setFixedSize(30, 30)
+        self.refresh_exercises_btn.setToolTip("Actualizar lista")
+        self.refresh_exercises_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #2ecc71;
+                color: white;
+                border-radius: 15px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """
+        )
+        self.refresh_exercises_btn.clicked.connect(self.cargar_ejercicios)
+        exercises_toolbar.addWidget(self.refresh_exercises_btn)
+
         exercises_toolbar.addStretch()
         exercises_layout.addLayout(exercises_toolbar)
 
         # Lista de ejercicios
         self.exercises_list = QListWidget()
-        self.exercises_list.setMaximumHeight(150)
+        self.exercises_list.setMaximumHeight(200)
         self.exercises_list.setStyleSheet(
             """
             QListWidget {
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 background-color: white;
+            }
+            QListWidget::item {
+                padding: 5px;
             }
         """
         )
@@ -348,7 +372,7 @@ class LessonDialog(QDialog):
     def on_ejercicios_changed(self, state):
         """Mostrar/ocultar sección de ejercicios"""
         self.exercises_group.setVisible(state == Qt.Checked)
-        if state == Qt.Checked and not self.exercises_list.count():
+        if state == Qt.Checked and self.lesson_data:
             self.cargar_ejercicios()
 
     def cargar_ejercicios(self):
@@ -356,7 +380,9 @@ class LessonDialog(QDialog):
         if not self.lesson_data:
             return
 
+        logger.debug(f"Cargando ejercicios para lección {self.lesson_data['id']}")
         self.exercises_list.clear()
+
         result = self.api_client.get_ejercicios(self.modulo_id, self.lesson_data["id"])
 
         if result["success"]:
@@ -368,67 +394,115 @@ class LessonDialog(QDialog):
             else:
                 self.ejercicios = []
 
-            for ejercicio in self.ejercicios:
-                item = QListWidgetItem()
-                widget = ExerciseItemWidget(ejercicio)
-                widget.edit_clicked.connect(self.editar_ejercicio)
-                widget.delete_clicked.connect(self.eliminar_ejercicio)
+            logger.debug(f"Ejercicios cargados: {len(self.ejercicios)}")
 
-                item.setSizeHint(widget.sizeHint())
+            if not self.ejercicios:
+                # Mostrar mensaje si no hay ejercicios
+                item = QListWidgetItem("📭 No hay ejercicios creados")
+                item.setForeground(QColor("#95a5a6"))
+                item.setFlags(Qt.NoItemFlags)
                 self.exercises_list.addItem(item)
-                self.exercises_list.setItemWidget(item, widget)
+            else:
+                for ejercicio in self.ejercicios:
+                    item = QListWidgetItem()
+                    widget = ExerciseItemWidget(ejercicio)
+                    widget.edit_clicked.connect(self.editar_ejercicio)
+                    widget.delete_clicked.connect(self.eliminar_ejercicio)
+
+                    item.setSizeHint(widget.sizeHint())
+                    self.exercises_list.addItem(item)
+                    self.exercises_list.setItemWidget(item, widget)
 
     def nuevo_ejercicio(self):
         """Crear nuevo ejercicio"""
         if not self.lesson_data:
+            QMessageBox.warning(self, "Error", "Primero debes guardar la lección")
             return
 
+        logger.debug("Abriendo diálogo para nuevo ejercicio")
         dialog = ExerciseDialog(
             self.api_client, self.modulo_id, self.lesson_data["id"], parent=self
         )
+
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
+            if data is None:
+                return
+
+            logger.debug(f"Creando ejercicio con datos: {data}")
             result = self.api_client.create_ejercicio(
                 self.modulo_id, self.lesson_data["id"], data
             )
+
             if result["success"]:
                 QMessageBox.information(self, "Éxito", "Ejercicio creado correctamente")
                 self.cargar_ejercicios()
+                # Asegurar que el checkbox esté marcado
+                if not self.ejercicios_check.isChecked():
+                    self.ejercicios_check.setChecked(True)
             else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+                error_msg = result.get("error", "Error desconocido")
+                QMessageBox.critical(
+                    self, "Error", f"Error al crear ejercicio:\n{error_msg}"
+                )
 
     def editar_ejercicio(self, ejercicio):
         """Editar ejercicio existente"""
+        if not self.lesson_data:
+            return
+
+        logger.debug(f"Editando ejercicio: {ejercicio.get('id')}")
         dialog = ExerciseDialog(
             self.api_client, self.modulo_id, self.lesson_data["id"], ejercicio, self
         )
+
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
+            if data is None:
+                return
+
             result = self.api_client.update_ejercicio(
                 self.modulo_id, self.lesson_data["id"], ejercicio["id"], data
             )
+
             if result["success"]:
-                QMessageBox.information(self, "Éxito", "Ejercicio actualizado")
+                QMessageBox.information(
+                    self, "Éxito", "Ejercicio actualizado correctamente"
+                )
                 self.cargar_ejercicios()
             else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+                error_msg = result.get("error", "Error desconocido")
+                QMessageBox.critical(
+                    self, "Error", f"Error al actualizar:\n{error_msg}"
+                )
 
     def eliminar_ejercicio(self, ejercicio):
         """Eliminar ejercicio"""
         reply = QMessageBox.question(
             self,
-            "Confirmar",
-            "¿Eliminar este ejercicio?",
+            "Confirmar eliminación",
+            f"¿Estás seguro de eliminar este ejercicio?",
             QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
         )
+
         if reply == QMessageBox.Yes:
+            logger.debug(f"Eliminando ejercicio: {ejercicio.get('id')}")
             result = self.api_client.delete_ejercicio(
                 self.modulo_id, self.lesson_data["id"], ejercicio["id"]
             )
+
             if result["success"]:
+                QMessageBox.information(
+                    self, "Éxito", "Ejercicio eliminado correctamente"
+                )
                 self.cargar_ejercicios()
+                # Si no quedan ejercicios, podemos desmarcar el checkbox
+                if not self.ejercicios:
+                    self.ejercicios_check.setChecked(False)
             else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+                error_msg = result.get("error", "Error desconocido")
+                QMessageBox.critical(self, "Error", f"Error al eliminar:\n{error_msg}")
 
     def load_lesson_data(self):
         """Cargar datos de la lección"""
@@ -447,7 +521,7 @@ class LessonDialog(QDialog):
     def get_data(self):
         """Obtener datos del formulario"""
         return {
-            "titulo": self.titulo_input.text(),
+            "titulo": self.titulo_input.text().strip(),
             "contenido": self.editor.toHtml(),
             "orden": self.orden_input.value(),
             "tiene_editor_codigo": self.editor_check.isChecked(),
@@ -456,6 +530,7 @@ class LessonDialog(QDialog):
         }
 
 
+# El resto de las clases (LessonDetailView, LessonsView) se mantienen igual...
 class LessonDetailView(QWidget):
     """Vista de detalle de lección"""
 

@@ -721,9 +721,63 @@ class APIClient(QObject):
         )
 
     def create_modulo(self, data: Dict) -> Dict[str, Any]:
-        if not data.get("titulo") or not data.get("descripcion"):
-            return {"success": False, "error": "Título y descripción requeridos"}
-        return self.post("/admin/modulos", json=data, invalidate_cache=["modulos"])
+        """Crear módulo - Adaptado a la estructura de la BD"""
+
+        # Validar campos requeridos según la tabla
+        titulo = data.get("titulo", "").strip()
+        descripcion_larga = (
+            data.get("descripcion_larga")
+            or data.get("descripcion")
+            or data.get("contenido", "")
+        )
+        modulo_tipo = data.get(
+            "modulo"
+        )  # 'html', 'css', 'javascript', 'php', 'sql', 'introduccion'
+
+        if not titulo:
+            return {"success": False, "error": "El título es requerido"}
+
+        if not modulo_tipo:
+            return {
+                "success": False,
+                "error": "El tipo de módulo es requerido (html, css, javascript, php, sql, introduccion)",
+            }
+
+        if not descripcion_larga:
+            return {"success": False, "error": "La descripción es requerida"}
+
+        # Preparar datos para la API
+        api_data = {
+            "titulo": titulo,
+            "descripcion_larga": descripcion_larga,  # Nombre correcto en la BD
+            "modulo": modulo_tipo,
+            "estado": data.get("estado", "borrador"),
+            "orden_global": data.get("orden_global", 0),
+            "created_by": (
+                self.user.get("id") if self.user else None
+            ),  # ID del usuario actual
+        }
+
+        # Generar slug automáticamente si no viene
+        if "slug" in data and data["slug"]:
+            api_data["slug"] = data["slug"]
+        else:
+            # Convertir título a slug (ej: "Mi Módulo" -> "mi-modulo")
+            import re
+
+            slug = titulo.lower()
+            slug = re.sub(r"[^\w\s-]", "", slug)  # Eliminar caracteres especiales
+            slug = re.sub(
+                r"[-\s]+", "-", slug
+            )  # Reemplazar espacios y guiones múltiples por un solo guión
+            api_data["slug"] = slug.strip("-")
+
+        # Hacer la petición POST
+        result = self.post(
+            "/admin/modulos", json=api_data, invalidate_cache=["modulos"]
+        )
+
+        return result
 
     def update_modulo(self, modulo_id: int, data: Dict) -> Dict[str, Any]:
         return self.put(
@@ -763,9 +817,15 @@ class APIClient(QObject):
     def create_leccion(self, modulo_id: int, data: Dict) -> Dict[str, Any]:
         if not data.get("titulo") or not data.get("contenido"):
             return {"success": False, "error": "Título y contenido requeridos"}
+
+        # Asegurar que se incluya created_by
+        api_data = dict(data)
+        if "created_by" not in api_data and self.user:
+            api_data["created_by"] = self.user.get("id")
+
         return self.post(
             f"/admin/modulos/{modulo_id}/lecciones",
-            json=data,
+            json=api_data,
             invalidate_cache=["lecciones"],
         )
 
@@ -819,9 +879,15 @@ class APIClient(QObject):
     ) -> Dict[str, Any]:
         if not data.get("pregunta") or not data.get("tipo"):
             return {"success": False, "error": "Pregunta y tipo requeridos"}
+
+        # Asegurar que se incluya created_by
+        api_data = dict(data)
+        if "created_by" not in api_data and self.user:
+            api_data["created_by"] = self.user.get("id")
+
         return self.post(
             f"/admin/modulos/{modulo_id}/lecciones/{leccion_id}/ejercicios",
-            json=data,
+            json=api_data,
             invalidate_cache=["ejercicios"],
         )
 
@@ -855,6 +921,7 @@ class APIClient(QObject):
     def get_evaluacion(
         self, modulo_id: int, force_refresh: bool = False
     ) -> Dict[str, Any]:
+        """Obtener evaluación del módulo"""
         return self.get(
             f"/admin/modulos/{modulo_id}/evaluacion",
             cache_type="evaluaciones",
@@ -862,6 +929,19 @@ class APIClient(QObject):
         )
 
     def update_evaluacion_config(self, modulo_id: int, data: Dict) -> Dict[str, Any]:
+        """Actualizar configuración de evaluación"""
+
+        # Asegurar que el título esté presente
+        if "titulo" not in data or not data["titulo"]:
+            # Si no hay título, crear uno por defecto
+            data["titulo"] = f"Evaluación del Módulo {modulo_id}"
+
+        # Asegurar created_by
+        if "created_by" not in data and self.user:
+            data["created_by"] = self.user.get("id")
+
+        logger.debug(f"Enviando configuración de evaluación: {data}")
+
         return self.put(
             f"/admin/modulos/{modulo_id}/evaluacion/config",
             json=data,
@@ -873,9 +953,15 @@ class APIClient(QObject):
     ) -> Dict[str, Any]:
         if not data.get("pregunta"):
             return {"success": False, "error": "Pregunta requerida"}
+
+        # Asegurar que se incluya created_by
+        api_data = dict(data)
+        if "created_by" not in api_data and self.user:
+            api_data["created_by"] = self.user.get("id")
+
         return self.post(
             f"/admin/modulos/{modulo_id}/evaluacion/{evaluacion_id}/preguntas",
-            json=data,
+            json=api_data,
             invalidate_cache=["evaluaciones"],
         )
 

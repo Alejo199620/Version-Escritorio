@@ -265,13 +265,39 @@ class RichTextEditor(QWidget):
         layout.addWidget(self.editor)
 
     def setHtml(self, html):
-        self.editor.setHtml(html)
+        """Establecer contenido HTML"""
+        try:
+            if html and isinstance(html, str):
+                self.editor.setHtml(html)
+            else:
+                self.editor.clear()
+        except Exception as e:
+            logger.error(f"Error al establecer HTML: {e}")
+            self.editor.clear()
 
     def toHtml(self):
-        return self.editor.toHtml()
+        """Obtener contenido HTML"""
+        try:
+            html = self.editor.toHtml()
+            # Asegurar que no está vacío
+            if not html or html == "<p></p>" or html == "<p><br></p>":
+                return ""
+            return html
+        except Exception as e:
+            logger.error(f"Error al obtener HTML: {e}")
+            return ""
 
     def toPlainText(self):
-        return self.editor.toPlainText()
+        """Obtener texto plano"""
+        try:
+            return self.editor.toPlainText()
+        except Exception as e:
+            logger.error(f"Error al obtener texto plano: {e}")
+            return ""
+
+    def clear(self):
+        """Limpiar editor"""
+        self.editor.clear()
 
     def change_font(self, font):
         if self.editor.textCursor().hasSelection():
