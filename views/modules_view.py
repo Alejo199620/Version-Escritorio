@@ -388,6 +388,11 @@ class ModernCard(QFrame):
         super().leaveEvent(event)
 
 
+# ============================================================================
+# SECCIÓN 2: COMPONENTES DE LECCIONES
+# ============================================================================
+
+
 class EnhancedLessonItem(QWidget):
     """Item de lección con diseño profesional"""
 
@@ -610,22 +615,26 @@ class StatsWidget(QWidget):
             layout.addWidget(card, 1)
 
 
+# ============================================================================
+# SECCIÓN 4: COMPONENTES DE EVALUACIONES
+# ============================================================================
 class EvaluationConfigCard(QFrame):
-    """Tarjeta de configuración de evaluación"""
+    """Tarjeta de configuración de evaluación (solo lectura - estado desde API)"""
 
     def __init__(self, eval_data, parent=None):
         super().__init__(parent)
         self.eval_data = eval_data
         self.setup_ui()
+        self.setup_shadow()
 
-    def setup_ui(self):
-        # Sombra
+    def setup_shadow(self):
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(15)
         shadow.setColor(QColor(0, 0, 0, 20))
         shadow.setOffset(0, 4)
         self.setGraphicsEffect(shadow)
 
+    def setup_ui(self):
         self.setStyleSheet(
             """
             QFrame {
@@ -650,15 +659,21 @@ class EvaluationConfigCard(QFrame):
 
         header.addStretch()
 
-        # Badge de estado
-        if self.eval_data.get("activa"):
-            status_badge = QLabel("ACTIVA")
-            status_badge.setStyleSheet(StyleHelper.badge_active())
-        else:
-            status_badge = QLabel("INACTIVA")
-            status_badge.setStyleSheet(StyleHelper.badge_inactive())
+        # Badge de estado (solo lectura - sin cursor clickeable)
+        estado = self.eval_data.get("estado", "inactivo")
+        self.status_badge = QLabel(estado.upper())
+        self.status_badge.setFixedHeight(32)
+        self.status_badge.setAlignment(Qt.AlignCenter)
 
-        header.addWidget(status_badge)
+        # Aplicar estilo según el estado (sin cursor clickeable)
+        if estado == "activo":
+            self.status_badge.setStyleSheet(StyleHelper.badge_active())
+        elif estado == "inactivo":
+            self.status_badge.setStyleSheet(StyleHelper.badge_inactive())
+        else:
+            self.status_badge.setStyleSheet(StyleHelper.badge_draft())
+
+        header.addWidget(self.status_badge)
 
         layout.addLayout(header)
 
@@ -705,6 +720,11 @@ class EvaluationConfigCard(QFrame):
             grid.addWidget(param_frame, row, col)
 
         layout.addLayout(grid)
+
+
+# ============================================================================
+# SECCIÓN 5: COMPONENTES DE PREGUNTAS
+# ============================================================================
 
 
 class QuestionItemWidget(QWidget):
@@ -861,6 +881,11 @@ class QuestionItemWidget(QWidget):
         if not self.edit_btn.underMouse() and not self.delete_btn.underMouse():
             self.clicked.emit(self.pregunta)
         super().mousePressEvent(event)
+
+
+# ============================================================================
+# SECCIÓN 3: COMPONENTES DE MÓDULOS
+# ============================================================================
 
 
 class ModuleDialog(QDialog):
@@ -1112,7 +1137,7 @@ class ModuleDialog(QDialog):
 
 
 class ModuleDetailView(QWidget):
-    """Vista de detalle de módulo con diseño profesional"""
+    """Vista de detalle de módulo con diseño profesional y actualización en tiempo real"""
 
     module_updated = pyqtSignal()
     lesson_selected = pyqtSignal(object, object)
@@ -1124,9 +1149,44 @@ class ModuleDetailView(QWidget):
         self.lecciones = []
         self.evaluacion_actual = None
         self._loaded = False
+        self._cambiando_estado = False  # Flag para evitar múltiples cambios
+
+        # Elementos para indicadores de carga
+        self.loading_eval_label = None
+        self.loading_lessons_label = None
+
         self.setup_ui()
 
+        #  CONECTAR SEÑALES DEL API CLIENT
+        self.api_client.evaluaciones_changed.connect(self.on_evaluaciones_changed)
+        self.api_client.data_changed.connect(self.on_data_changed)
+
         QTimer.singleShot(50, self.load_all_data)
+
+    # ============================================================================
+    # MANEJADORES DE SEÑALES
+    # ============================================================================
+
+    def on_evaluaciones_changed(self):
+        """Cuando cambian las evaluaciones, recargar automáticamente"""
+        logger.debug(
+            f"Signal evaluaciones_changed recibida para módulo {self.modulo.get('id')}"
+        )
+        # Pequeño retraso para asegurar que la BD ya actualizó
+        QTimer.singleShot(300, self.recargar_evaluacion_con_indicador)
+
+    def on_data_changed(self, data_type):
+        """Cuando cambia cualquier dato, verificar si es relevante"""
+        if data_type == "evaluaciones":
+            logger.debug(f"Signal data_changed(evaluaciones) recibida")
+            QTimer.singleShot(300, self.recargar_evaluacion_con_indicador)
+        elif data_type == "lecciones":
+            logger.debug(f"Signal data_changed(lecciones) recibida")
+            QTimer.singleShot(300, self.recargar_lecciones_con_indicador)
+
+    # ============================================================================
+    # SETUP DE UI
+    # ============================================================================
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -1152,26 +1212,6 @@ class ModuleDetailView(QWidget):
 
         # Navegación
         nav_layout = QHBoxLayout()
-
-        back_btn = QPushButton("← Volver a Módulos")
-        back_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: rgba(255,255,255,0.2);
-                color: white;
-                border: none;
-                border-radius: 20px;
-                padding: 8px 20px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(255,255,255,0.3);
-            }
-        """
-        )
-        back_btn.clicked.connect(self.cancelar)
-        nav_layout.addWidget(back_btn)
 
         nav_layout.addStretch()
 
@@ -1234,13 +1274,10 @@ class ModuleDetailView(QWidget):
         tipo_badge = QLabel(self.modulo.get("modulo", "html").upper())
         tipo_badge.setStyleSheet(
             """
-            background-color: rgba(255,255,255,0.2);
-            color: white;
-            padding: 6px 16px;
-            border-radius: 20px;
+            color: rgba(255,255,255,0.9);
             font-size: 12px;
             font-weight: bold;
-            max-width: 100px;
+            letter-spacing: 1px;
         """
         )
         title_info.addWidget(tipo_badge)
@@ -1255,44 +1292,19 @@ class ModuleDetailView(QWidget):
         info_layout.addLayout(title_info)
         info_layout.addStretch()
 
-        # Estado
+        #  ESTADO CLICKEABLE - MODIFICADO
         estado = self.modulo.get("estado", "inactivo")
-        estado_badge = QLabel(estado.upper())
-        if estado == "activo":
-            estado_badge.setStyleSheet(
-                """
-                background-color: #10b981;
-                color: white;
-                padding: 8px 24px;
-                border-radius: 24px;
-                font-size: 13px;
-                font-weight: bold;
-            """
-            )
-        elif estado == "inactivo":
-            estado_badge.setStyleSheet(
-                """
-                background-color: #ef4444;
-                color: white;
-                padding: 8px 24px;
-                border-radius: 24px;
-                font-size: 13px;
-                font-weight: bold;
-            """
-            )
-        else:
-            estado_badge.setStyleSheet(
-                """
-                background-color: #f59e0b;
-                color: white;
-                padding: 8px 24px;
-                border-radius: 24px;
-                font-size: 13px;
-                font-weight: bold;
-            """
-            )
+        self.estado_badge = QLabel(estado.upper())
+        self.estado_badge.setCursor(Qt.PointingHandCursor)  # Cambiar cursor a mano
+        self.estado_badge.setFixedHeight(40)
+        self.estado_badge.setAlignment(Qt.AlignCenter)
+        self.estado_badge.setToolTip("Haz clic para cambiar el estado del módulo")
+        self.actualizar_estado_badge(estado)
 
-        info_layout.addWidget(estado_badge)
+        # Conectar evento de clic
+        self.estado_badge.mousePressEvent = self.cambiar_estado_click
+
+        info_layout.addWidget(self.estado_badge)
 
         header_layout.addLayout(info_layout)
         main_layout.addWidget(header)
@@ -1528,43 +1540,181 @@ class ModuleDetailView(QWidget):
         scroll.setWidget(content)
         main_layout.addWidget(scroll)
 
-    def eliminar_modulo(self):
-        """Eliminar el módulo actual"""
+    # ============================================================================
+    # MÉTODO PARA ACTUALIZAR EL BADGE DE ESTADO
+    # ============================================================================
+
+    def actualizar_estado_badge(self, estado):
+        """Actualizar el estilo del badge según el estado (solo activo/inactivo)"""
+        if estado == "activo":
+            self.estado_badge.setStyleSheet(
+                """
+                background-color: #10b981;
+                color: white;
+                padding: 8px 24px;
+                border-radius: 24px;
+                font-size: 13px;
+                font-weight: bold;
+            """
+            )
+        else:  # inactivo
+            self.estado_badge.setStyleSheet(
+                """
+                background-color: #ef4444;
+                color: white;
+                padding: 8px 24px;
+                border-radius: 24px;
+                font-size: 13px;
+                font-weight: bold;
+            """
+            )
+
+    # ============================================================================
+    # MÉTODO PARA CAMBIAR ESTADO AL HACER CLIC
+    # ============================================================================
+
+    def cambiar_estado_click(self, event):
+        """Cambiar el estado del módulo al hacer clic en el badge"""
+        if self._cambiando_estado:
+            return  # Evitar múltiples clics
+
+        self._cambiando_estado = True
+
+        # Obtener estado actual y determinar el siguiente
+        estado_actual = self.modulo.get("estado", "inactivo")
+
+        # Ciclo de estados: activo -> inactivo -> activo (solo dos estados)
+        if estado_actual == "activo":
+            nuevo_estado = "inactivo"
+        else:  # inactivo o cualquier otro
+            nuevo_estado = "activo"
+
+        # Confirmar cambio
         reply = QMessageBox.question(
             self,
-            "Confirmar eliminación",
-            f"¿Estás seguro de eliminar el módulo '{self.modulo.get('titulo')}'?\n"
-            "Esta acción eliminará TODAS las lecciones, ejercicios y evaluaciones asociadas.\n"
-            "No se puede deshacer.",
+            "Cambiar estado",
+            f"¿Cambiar estado del módulo de '{estado_actual}' a '{nuevo_estado}'?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.Yes,
         )
 
         if reply == QMessageBox.Yes:
-            # Mostrar indicador de carga
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            self._cambiar_estado_modulo(nuevo_estado)
+        else:
+            self._cambiando_estado = False
 
-            try:
-                result = self.api_client.delete_modulo(self.modulo["id"])
+    def _cambiar_estado_modulo(self, nuevo_estado):
+        """Realizar el cambio de estado en la API"""
+        # Mostrar cursor de espera
+        QApplication.setOverrideCursor(Qt.WaitCursor)
 
-                if result["success"]:
-                    QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Módulo eliminado correctamente"
-                    )
-                    # Volver a la lista de módulos
-                    self.module_updated.emit()  # Esto actualizará la vista principal
-                else:
-                    QApplication.restoreOverrideCursor()
-                    error_msg = result.get("error", "Error desconocido")
-                    if "errors" in result:
-                        error_msg += "\n" + "\n".join(result["errors"])
-                    QMessageBox.critical(
-                        self, "Error", f"Error al eliminar módulo:\n{error_msg}"
-                    )
-            except Exception as e:
+        try:
+            # Preparar datos para actualizar solo el estado
+            data = {"estado": nuevo_estado}
+
+            # Llamar a la API para actualizar el módulo
+            result = self.api_client.update_modulo(self.modulo["id"], data)
+
+            if result["success"]:
+                # Actualizar el estado localmente
+                self.modulo["estado"] = nuevo_estado
+                self.actualizar_estado_badge(nuevo_estado)
+
                 QApplication.restoreOverrideCursor()
-                QMessageBox.critical(self, "Error", f"Error inesperado:\n{str(e)}")
+                QMessageBox.information(
+                    self,
+                    "✅ Éxito",
+                    f"Estado cambiado a '{nuevo_estado}' correctamente",
+                )
+
+                # Emitir señal de actualización
+                self.module_updated.emit()
+            else:
+                QApplication.restoreOverrideCursor()
+                error_msg = result.get("error", "Error desconocido")
+                QMessageBox.critical(
+                    self, "❌ Error", f"Error al cambiar estado:\n{error_msg}"
+                )
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
+        finally:
+            self._cambiando_estado = False
+
+    # ============================================================================
+    # MÉTODOS DE CARGA Y ACTUALIZACIÓN MEJORADOS
+    # ============================================================================
+
+    def recargar_evaluacion_con_indicador(self):
+        """Recargar la evaluación mostrando un indicador visual profesional"""
+        # Crear indicador si no existe o fue eliminado
+        try:
+            if self.loading_eval_label and not self.loading_eval_label.isHidden():
+                self.loading_eval_label.deleteLater()
+        except:
+            pass
+
+        self.loading_eval_label = QLabel("🔄 Cargando evaluación...")
+        self.loading_eval_label.setAlignment(Qt.AlignCenter)
+        self.loading_eval_label.setStyleSheet(
+            """
+            QLabel {
+                color: #4361ee;
+                padding: 60px;
+                font-size: 16px;
+                font-weight: bold;
+                background-color: white;
+                border-radius: 16px;
+                border: 2px dashed #4361ee;
+            }
+        """
+        )
+
+        # Limpiar y mostrar indicador
+        self.clear_layout(self.eval_container_layout)
+        self.eval_container_layout.addWidget(self.loading_eval_label)
+        QApplication.processEvents()
+
+        # 🔥 FORZAR RECARGA CON force_refresh 🔥
+        QTimer.singleShot(300, self._do_load_evaluacion)
+
+    def _do_load_evaluacion(self):
+        """Cargar evaluación forzando refresco"""
+        self.load_evaluacion()
+
+    def recargar_lecciones_con_indicador(self):
+        """Recargar las lecciones mostrando un indicador visual"""
+        try:
+            if self.loading_lessons_label and not self.loading_lessons_label.isHidden():
+                self.loading_lessons_label.deleteLater()
+        except:
+            pass
+
+        self.loading_lessons_label = QLabel("📚 Cargando lecciones...")
+        self.loading_lessons_label.setAlignment(Qt.AlignCenter)
+        self.loading_lessons_label.setStyleSheet(
+            """
+            QLabel {
+                color: #10b981;
+                padding: 40px;
+                font-size: 14px;
+                background-color: #f0fdf4;
+                border-radius: 12px;
+                border: 2px dashed #10b981;
+            }
+        """
+        )
+
+        self.clear_layout(self.lessons_container_layout)
+        self.lessons_container_layout.addWidget(self.loading_lessons_label)
+        QApplication.processEvents()
+
+        # 🔥 FORZAR RECARGA CON force_refresh 🔥
+        QTimer.singleShot(300, self._do_load_lecciones)
+
+    def _do_load_lecciones(self):
+        """Cargar lecciones forzando refresco"""
+        self.load_lecciones()
 
     def load_all_data(self):
         """Cargar todos los datos del módulo"""
@@ -1572,13 +1722,10 @@ class ModuleDetailView(QWidget):
             return
 
         # Cargar lecciones
-        self.load_lecciones()
+        self.recargar_lecciones_con_indicador()
 
         # Cargar evaluación
-        self.load_evaluacion()
-
-        # Actualizar estadísticas después de cargar datos
-        QTimer.singleShot(100, self.update_stats)
+        self.recargar_evaluacion_con_indicador()
 
         self._loaded = True
 
@@ -1597,13 +1744,10 @@ class ModuleDetailView(QWidget):
         new_stats_widget = StatsWidget(stats)
 
         # Buscar el contenedor de estadísticas en el layout
-        # Asumiendo que stats_widget está en content_layout (el layout del contenido)
         if hasattr(self, "stats_widget") and self.stats_widget:
-            # Obtener el layout padre
             parent = self.stats_widget.parent()
             if parent and parent.layout():
                 layout = parent.layout()
-                # Reemplazar el widget
                 index = layout.indexOf(self.stats_widget)
                 if index >= 0:
                     layout.removeWidget(self.stats_widget)
@@ -1611,30 +1755,23 @@ class ModuleDetailView(QWidget):
                     layout.insertWidget(index, new_stats_widget)
                     self.stats_widget = new_stats_widget
                 else:
-                    # Si no se encuentra el índice, agregar al final
                     layout.addWidget(new_stats_widget)
                     self.stats_widget = new_stats_widget
             else:
-                # No hay padre, probablemente estamos en inicialización
-                # Solo guardar el nuevo widget
                 self.stats_widget = new_stats_widget
         else:
-            # Primera vez que se crea
             self.stats_widget = new_stats_widget
 
     def load_lecciones(self):
         """Cargar lecciones del módulo"""
-        # Limpiar el layout actual
+        # Limpiar referencias a widgets anteriores
+        try:
+            if hasattr(self, "loading_lessons_label") and self.loading_lessons_label:
+                self.loading_lessons_label = None
+        except:
+            pass
+
         self.clear_layout(self.lessons_container_layout)
-
-        # Mostrar indicador de carga
-        loading_label = QLabel("🔄 Cargando lecciones...")
-        loading_label.setAlignment(Qt.AlignCenter)
-        loading_label.setStyleSheet("color: #94a3b8; padding: 40px; font-size: 14px;")
-        self.lessons_container_layout.addWidget(loading_label)
-
-        # Procesar eventos para mostrar el indicador
-        QApplication.processEvents()
 
         # Hacer la petición a la API
         result = self.api_client.get_lecciones(self.modulo["id"], force_refresh=True)
@@ -1646,9 +1783,6 @@ class ModuleDetailView(QWidget):
                 if isinstance(data, list)
                 else data.get("data", []) if isinstance(data, dict) else []
             )
-
-            # Limpiar de nuevo antes de agregar los items
-            self.clear_layout(self.lessons_container_layout)
 
             if not self.lecciones:
                 empty_label = QLabel("📭 No hay lecciones creadas en este módulo")
@@ -1668,8 +1802,6 @@ class ModuleDetailView(QWidget):
                     item.delete_clicked.connect(self.eliminar_leccion)
                     self.lessons_container_layout.addWidget(item)
         else:
-            # Limpiar y mostrar error
-            self.clear_layout(self.lessons_container_layout)
             error_label = QLabel(f"❌ Error al cargar lecciones: {result.get('error')}")
             error_label.setStyleSheet("color: #ef4444; padding: 40px; font-size: 14px;")
             error_label.setAlignment(Qt.AlignCenter)
@@ -1677,24 +1809,32 @@ class ModuleDetailView(QWidget):
             self.lecciones = []
 
         self.lessons_container_layout.addStretch()
-
-        # Forzar actualización de la interfaz
         QApplication.processEvents()
 
     def load_evaluacion(self):
+        """Cargar evaluación del módulo"""
+        # Limpiar referencias a widgets anteriores
+        try:
+            if hasattr(self, "loading_eval_label") and self.loading_eval_label:
+                self.loading_eval_label = None
+        except:
+            pass
+
         self.clear_layout(self.eval_container_layout)
 
-        result = self.api_client.get_evaluacion(self.modulo["id"])
+        result = self.api_client.get_evaluacion(self.modulo["id"], force_refresh=True)
 
         if result["success"] and result.get("data"):
+            # CASO 1: HAY EVALUACIÓN CONFIGURADA
             self.evaluacion_actual = result["data"]
             eval_data = self.evaluacion_actual
 
-            # Tarjeta de configuración
-            config_card = EvaluationConfigCard(eval_data)
+            # Tarjeta de configuración (solo lectura)
+            config_card = EvaluationConfigCard(eval_data, self)
+            # 🔥 Ya no conectamos ninguna señal porque no hay cambios de estado
             self.eval_container_layout.addWidget(config_card)
 
-            # Botón agregar pregunta
+            # Botón para agregar preguntas
             add_question_btn = QPushButton("➕ Agregar Pregunta")
             add_question_btn.setFixedHeight(50)
             add_question_btn.setStyleSheet(
@@ -1715,7 +1855,7 @@ class ModuleDetailView(QWidget):
             add_question_btn.clicked.connect(self.agregar_pregunta)
             self.eval_container_layout.addWidget(add_question_btn)
 
-            # Preguntas
+            # Título de preguntas (si existen)
             preguntas = eval_data.get("preguntas", [])
             if preguntas:
                 preguntas_title = QLabel(f"📋 Preguntas ({len(preguntas)})")
@@ -1725,14 +1865,25 @@ class ModuleDetailView(QWidget):
                 )
                 self.eval_container_layout.addWidget(preguntas_title)
 
+                # Listar preguntas existentes
                 for pregunta in preguntas:
                     item = QuestionItemWidget(pregunta)
-                    item.clicked.connect(self.editar_pregunta)
                     item.edit_clicked.connect(self.editar_pregunta)
                     item.delete_clicked.connect(self.eliminar_pregunta)
                     self.eval_container_layout.addWidget(item)
+            else:
+                # Mensaje si no hay preguntas
+                no_preguntas_label = QLabel("📭 No hay preguntas creadas aún")
+                no_preguntas_label.setStyleSheet(
+                    "color: #94a3b8; padding: 40px; font-size: 14px;"
+                )
+                no_preguntas_label.setAlignment(Qt.AlignCenter)
+                self.eval_container_layout.addWidget(no_preguntas_label)
+
         else:
-            # No hay evaluación configurada
+            # CASO 2: NO HAY EVALUACIÓN CONFIGURADA (igual que antes)
+            self.evaluacion_actual = None
+
             empty_frame = QFrame()
             empty_frame.setStyleSheet(
                 """
@@ -1779,19 +1930,248 @@ class ModuleDetailView(QWidget):
 
         self.eval_container_layout.addStretch()
 
-    def clear_layout(self, layout):
-        while layout.count():
-            child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+    # ============================================================================
+    # CONFIGURACIÓN DE EVALUACIÓN (CORREGIDO - SIN DOBLE CARGA)
+    # ============================================================================
 
-    # Métodos de acción
-    def abrir_leccion(self, leccion):
-        self.lesson_selected.emit(self.modulo, leccion)
+    def configurar_evaluacion(self):
+        """Configurar la evaluación del módulo con actualización en tiempo real"""
+        from views.evaluations_view import EvaluationConfigDialog
+
+        dialog = EvaluationConfigDialog(
+            self.api_client,
+            self.modulo["id"],
+            self.evaluacion_actual,
+            self,
+        )
+
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+
+            # Mostrar indicador de carga
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+
+            try:
+                # IMPORTANTE: Asegurar que se pasa el título
+                if "titulo" not in data or not data["titulo"]:
+                    data["titulo"] = f"Evaluación del Módulo {self.modulo['id']}"
+
+                result = self.api_client.update_evaluacion_config(
+                    self.modulo["id"], data
+                )
+
+                if result["success"]:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.information(
+                        self, "✅ Éxito", "Evaluación configurada correctamente"
+                    )
+
+                    # ✅ SOLO UNA RECARGA - ELIMINADO invalidate_cache_type MANUAL
+                    self.recargar_evaluacion_con_indicador()
+                    self.module_updated.emit()
+                else:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.critical(
+                        self, "❌ Error", f"Error al configurar: {result.get('error')}"
+                    )
+            except Exception as e:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
+
+    # ============================================================================
+    # GESTIÓN DE PREGUNTAS (CORREGIDO - SIN DOBLE CARGA)
+    # ============================================================================
+
+    def agregar_pregunta(self):
+        """Agregar nueva pregunta con actualización en tiempo real"""
+        if not self.evaluacion_actual:
+            QMessageBox.warning(
+                self,
+                "⚠️ Configuración requerida",
+                "Debes configurar la evaluación antes de agregar preguntas.",
+            )
+            return
+
+        dialog = QuickQuestionDialog(
+            self.api_client, self.evaluacion_actual.get("id"), None, self
+        )
+
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+
+            try:
+                result = self.api_client.create_pregunta(
+                    self.modulo["id"], self.evaluacion_actual.get("id"), data
+                )
+
+                if result["success"]:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.information(
+                        self, "✅ Éxito", "Pregunta creada correctamente"
+                    )
+
+                    # ✅ SOLO UNA RECARGA - ELIMINADO invalidate_cache_type MANUAL
+                    self.recargar_evaluacion_con_indicador()
+                else:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.critical(
+                        self, "❌ Error", f"Error al crear: {result.get('error')}"
+                    )
+            except Exception as e:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
+
+    def eliminar_pregunta(self, pregunta):
+        """Eliminar pregunta con confirmación y actualización en tiempo real"""
+        reply = QMessageBox.question(
+            self,
+            "⚠️ Confirmar eliminación",
+            f"¿Estás seguro de eliminar esta pregunta?\n\n"
+            f"Pregunta: {pregunta.get('pregunta', '')[:50]}...\n\n"
+            f"Esta acción no se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if reply == QMessageBox.Yes:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+
+            try:
+                result = self.api_client.delete_pregunta(
+                    self.modulo["id"],
+                    self.evaluacion_actual.get("id"),
+                    pregunta["id"],
+                )
+
+                if result["success"]:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.information(
+                        self, "✅ Éxito", "Pregunta eliminada correctamente"
+                    )
+
+                    # ✅ SOLO UNA RECARGA - ELIMINADO invalidate_cache_type MANUAL
+                    self.recargar_evaluacion_con_indicador()
+                else:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.critical(
+                        self, "❌ Error", f"Error al eliminar: {result.get('error')}"
+                    )
+            except Exception as e:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
+
+    def editar_pregunta(self, pregunta):
+        """Editar pregunta existente con actualización en tiempo real"""
+        dialog = QuickQuestionDialog(
+            self.api_client, self.evaluacion_actual.get("id"), pregunta, self
+        )
+
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+
+            try:
+                result = self.api_client.update_pregunta(
+                    self.modulo["id"],
+                    self.evaluacion_actual.get("id"),
+                    pregunta["id"],
+                    data,
+                )
+
+                if result["success"]:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.information(
+                        self, "✅ Éxito", "Pregunta actualizada correctamente"
+                    )
+
+                    # ✅ SOLO UNA RECARGA - ELIMINADO invalidate_cache_type MANUAL
+                    self.recargar_evaluacion_con_indicador()
+                else:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.critical(
+                        self, "❌ Error", f"Error al actualizar: {result.get('error')}"
+                    )
+            except Exception as e:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
+
+    def update_pregunta_opciones(self, pregunta_id, opciones):
+        """Actualizar solo las opciones de una pregunta"""
+        # Mostrar indicador de carga
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+
+        try:
+            result = self.api_client.update_pregunta_opciones(
+                self.modulo["id"],
+                self.evaluacion_actual.get("id"),
+                pregunta_id,
+                opciones,
+            )
+
+            if result["success"]:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.information(
+                    self, "✅ Éxito", "Opciones actualizadas correctamente"
+                )
+                # ✅ YA ESTÁ BIEN (solo tiene recargar)
+                self.recargar_evaluacion_con_indicador()
+            else:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.critical(
+                    self,
+                    "❌ Error",
+                    f"Error al actualizar opciones: {result.get('error')}",
+                )
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
+
+    # ============================================================================
+    # MÉTODOS DE GESTIÓN DE LECCIONES
+    # ============================================================================
+
+    def nueva_leccion(self):
+        """Crear nueva lección con actualización en tiempo real"""
+        dialog = LessonDialog(self.api_client, self.modulo["id"], parent=self)
+
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+            if data is None:
+                return
+
+            # Mostrar cursor de espera
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+
+            try:
+                result = self.api_client.create_leccion(self.modulo["id"], data)
+
+                if result["success"]:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.information(
+                        self, "✅ Éxito", "Lección creada correctamente"
+                    )
+                    self.recargar_lecciones_con_indicador()
+                    QTimer.singleShot(500, self.update_stats)
+                    self.module_updated.emit()
+                else:
+                    QApplication.restoreOverrideCursor()
+                    error_msg = result.get("error", "Error desconocido")
+                    if "errors" in result:
+                        error_msg += "\n" + "\n".join(result["errors"])
+                    QMessageBox.critical(
+                        self, "❌ Error", f"Error al crear lección:\n{error_msg}"
+                    )
+            except Exception as e:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
 
     def editar_leccion(self, leccion):
-        """Editar lección existente"""
+        """Editar lección existente con actualización en tiempo real"""
         dialog = LessonDialog(self.api_client, self.modulo["id"], leccion, self)
+
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
             if data is None:
@@ -1808,12 +2188,10 @@ class ModuleDetailView(QWidget):
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
                     QMessageBox.information(
-                        self, "Éxito", "Lección actualizada correctamente"
+                        self, "✅ Éxito", "Lección actualizada correctamente"
                     )
-
-                    # Forzar recarga completa
-                    self.load_lecciones()
-                    QTimer.singleShot(200, self.update_stats)
+                    self.recargar_lecciones_con_indicador()
+                    QTimer.singleShot(500, self.update_stats)
                     self.module_updated.emit()
                 else:
                     QApplication.restoreOverrideCursor()
@@ -1821,19 +2199,20 @@ class ModuleDetailView(QWidget):
                     if "errors" in result:
                         error_msg += "\n" + "\n".join(result["errors"])
                     QMessageBox.critical(
-                        self, "Error", f"Error al actualizar:\n{error_msg}"
+                        self, "❌ Error", f"Error al actualizar:\n{error_msg}"
                     )
             except Exception as e:
                 QApplication.restoreOverrideCursor()
-                QMessageBox.critical(self, "Error", f"Error inesperado:\n{str(e)}")
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
 
     def eliminar_leccion(self, leccion):
-        """Eliminar lección"""
+        """Eliminar lección con confirmación y actualización en tiempo real"""
         reply = QMessageBox.question(
             self,
-            "Confirmar eliminación",
-            f"¿Estás seguro de eliminar la lección '{leccion.get('titulo')}'?\n"
-            "Esta acción no se puede deshacer.",
+            "⚠️ Confirmar eliminación",
+            f"¿Estás seguro de eliminar la lección '{leccion.get('titulo')}'?\n\n"
+            f"Esta acción eliminará TODOS los ejercicios asociados.\n"
+            f"No se puede deshacer.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -1850,152 +2229,134 @@ class ModuleDetailView(QWidget):
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
                     QMessageBox.information(
-                        self, "Éxito", "Lección eliminada correctamente"
+                        self, "✅ Éxito", "Lección eliminada correctamente"
                     )
-
-                    # Forzar recarga completa de lecciones
-                    self.lecciones = []  # Limpiar lista actual
-                    self.load_lecciones()  # Recargar desde la API
-                    QTimer.singleShot(200, self.update_stats)  # Actualizar estadísticas
-                    self.module_updated.emit()  # Notificar a la vista principal
+                    self.lecciones = []
+                    self.recargar_lecciones_con_indicador()
+                    QTimer.singleShot(500, self.update_stats)
+                    self.module_updated.emit()
                 else:
                     QApplication.restoreOverrideCursor()
                     error_msg = result.get("error", "Error desconocido")
                     QMessageBox.critical(
-                        self, "Error", f"Error al eliminar lección:\n{error_msg}"
+                        self, "❌ Error", f"Error al eliminar lección:\n{error_msg}"
                     )
             except Exception as e:
                 QApplication.restoreOverrideCursor()
-                QMessageBox.critical(self, "Error", f"Error inesperado:\n{str(e)}")
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
+
+    # ============================================================================
+    # GESTIÓN DE MÓDULOS
+    # ============================================================================
 
     def editar_modulo(self):
+        """Editar módulo con actualización en tiempo real"""
         dialog = ModuleDialog(self.api_client, self.modulo, self)
+
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
-            result = self.api_client.update_modulo(self.modulo["id"], data)
-            if result["success"]:
-                QMessageBox.information(
-                    self, "Éxito", "Módulo actualizado correctamente"
-                )
-                self.module_updated.emit()  # Actualizar vista principal
-                # Recargar datos del módulo
-                self.modulo.update(data)
-                # Actualizar UI
-                self.load_all_data()
-            else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
-    def nueva_leccion(self):
-        """Crear nueva lección"""
-        dialog = LessonDialog(self.api_client, self.modulo["id"], parent=self)
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-            if data is None:
-                return
+            # Mostrar cursor de espera
+            QApplication.setOverrideCursor(Qt.WaitCursor)
 
-            result = self.api_client.create_leccion(self.modulo["id"], data)
-            if result["success"]:
-                QMessageBox.information(self, "Éxito", "Lección creada correctamente")
-                self.load_lecciones()
-                # Usar QTimer para actualizar stats después de que se hayan cargado las lecciones
-                QTimer.singleShot(200, self.update_stats)
-                self.module_updated.emit()  # Actualizar vista principal
-            else:
-                error_msg = result.get("error", "Error desconocido")
-                if "errors" in result:
-                    error_msg += "\n" + "\n".join(result["errors"])
-                QMessageBox.critical(
-                    self, "Error", f"Error al crear lección:\n{error_msg}"
-                )
+            try:
+                result = self.api_client.update_modulo(self.modulo["id"], data)
 
-    def configurar_evaluacion(self):
-        from views.evaluations_view import EvaluationConfigDialog
+                if result["success"]:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.information(
+                        self, "✅ Éxito", "Módulo actualizado correctamente"
+                    )
+                    self.modulo.update(data)
+                    self.module_updated.emit()
 
-        dialog = EvaluationConfigDialog(
-            self.api_client, self.modulo["id"], self.evaluacion_actual, self
-        )
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-            result = self.api_client.update_evaluacion_config(self.modulo["id"], data)
-            if result["success"]:
-                QMessageBox.information(
-                    self, "Éxito", "Evaluación configurada correctamente"
-                )
-                self.load_evaluacion()
-                self.module_updated.emit()  # Actualizar vista principal
-            else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+                    # Recargar todo después de un breve retraso
+                    QTimer.singleShot(300, self.load_all_data)
+                else:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.critical(
+                        self,
+                        "❌ Error",
+                        f"Error al actualizar módulo: {result.get('error')}",
+                    )
+            except Exception as e:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
 
-    def agregar_pregunta(self):
-        if not self.evaluacion_actual:
-            QMessageBox.warning(
-                self,
-                "Configuración requerida",
-                "Debes configurar la evaluación antes de agregar preguntas.",
-            )
-            return
-
-        dialog = QuickQuestionDialog(
-            self.api_client, self.evaluacion_actual.get("id"), parent=self
-        )
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-            result = self.api_client.create_pregunta(
-                self.modulo["id"], self.evaluacion_actual.get("id"), data
-            )
-            if result["success"]:
-                QMessageBox.information(self, "Éxito", "Pregunta creada correctamente")
-                self.load_evaluacion()
-                self.module_updated.emit()  # Actualizar vista principal
-            else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
-
-    def editar_pregunta(self, pregunta):
-        if not self.evaluacion_actual:
-            return
-        dialog = QuickQuestionDialog(
-            self.api_client, self.evaluacion_actual.get("id"), pregunta, self
-        )
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-            result = self.api_client.update_pregunta(
-                self.modulo["id"],
-                self.evaluacion_actual.get("id"),
-                pregunta["id"],
-                data,
-            )
-            if result["success"]:
-                QMessageBox.information(
-                    self, "Éxito", "Pregunta actualizada correctamente"
-                )
-                self.load_evaluacion()
-                self.module_updated.emit()  # Actualizar vista principal
-            else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
-
-    def eliminar_pregunta(self, pregunta):
+    def eliminar_modulo(self):
+        """Eliminar módulo con confirmación"""
         reply = QMessageBox.question(
             self,
-            "Confirmar eliminación",
-            "¿Estás seguro de eliminar esta pregunta?",
+            "⚠️ Confirmar eliminación",
+            f"¿Estás seguro de eliminar el módulo '{self.modulo.get('titulo')}'?\n\n"
+            f"Esta acción eliminará TODAS las lecciones, ejercicios y evaluaciones asociadas.\n"
+            f"NO SE PUEDE DESHACER.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
-            result = self.api_client.delete_pregunta(
-                self.modulo["id"], self.evaluacion_actual.get("id"), pregunta["id"]
-            )
-            if result["success"]:
-                QMessageBox.information(
-                    self, "Éxito", "Pregunta eliminada correctamente"
-                )
-                self.load_evaluacion()
-                self.module_updated.emit()  # Actualizar vista principal
+            # Mostrar indicador de carga
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+
+            try:
+                result = self.api_client.delete_modulo(self.modulo["id"])
+
+                if result["success"]:
+                    QApplication.restoreOverrideCursor()
+                    QMessageBox.information(
+                        self, "✅ Éxito", "Módulo eliminado correctamente"
+                    )
+                    self.module_updated.emit()
+                else:
+                    QApplication.restoreOverrideCursor()
+                    error_msg = result.get("error", "Error desconocido")
+                    if "errors" in result:
+                        error_msg += "\n" + "\n".join(result["errors"])
+                    QMessageBox.critical(
+                        self, "❌ Error", f"Error al eliminar módulo:\n{error_msg}"
+                    )
+            except Exception as e:
+                QApplication.restoreOverrideCursor()
+                QMessageBox.critical(self, "❌ Error inesperado", f"Error: {str(e)}")
+
+    # ============================================================================
+    # MÉTODOS UTILITARIOS
+    # ============================================================================
+
+    def clear_layout(self, layout):
+        """Limpiar layout de manera ultra segura"""
+        if layout is None:
+            return
+
+        # Usar un bucle while con takeAt
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                # Desconectar señales
+                try:
+                    widget.blockSignals(True)
+                    widget.hide()
+                    widget.setParent(None)
+                    widget.deleteLater()
+                except:
+                    pass
             else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+                # Si es un layout hijo, limpiarlo recursivamente
+                sublayout = item.layout()
+                if sublayout is not None:
+                    self.clear_layout(sublayout)
+
+        # Procesar eventos para asegurar eliminación
+        QApplication.processEvents()
+
+    def abrir_leccion(self, leccion):
+        """Abrir vista de lección"""
+        self.lesson_selected.emit(self.modulo, leccion)
 
     def cancelar(self):
+        """Volver a la lista de módulos"""
         self.module_updated.emit()
 
 
@@ -2297,8 +2658,26 @@ class ModulesView(QWidget):
         QApplication.processEvents()
 
     def clear_layout(self, layout):
-        """Versión anterior - mantener por compatibilidad pero usar la segura"""
-        self.clear_layout_safe(layout)
+        """Limpiar layout de manera segura - versión mejorada"""
+        if layout is None:
+            return
+
+        # Invertir el orden para eliminar desde el final
+        for i in reversed(range(layout.count())):
+            child = layout.takeAt(i)
+            if child.widget():
+                widget = child.widget()
+                # Desconectar todas las señales
+                try:
+                    widget.deleteLater()
+                except:
+                    pass
+            elif child.layout():
+                # Si es un sublayout, limpiarlo recursivamente
+                self.clear_layout(child.layout())
+
+        # Forzar actualización
+        QApplication.processEvents()
 
     def load_modulos(self, force_refresh=False):
         """Cargar lista de módulos"""
@@ -2604,8 +2983,6 @@ class OpcionDialog(QDialog):
 
 
 class QuickQuestionDialog(QDialog):
-    """Diálogo rápido para crear/editar preguntas"""
-
     def __init__(self, api_client, evaluacion_id, question_data=None, parent=None):
         super().__init__(parent)
         self.api_client = api_client

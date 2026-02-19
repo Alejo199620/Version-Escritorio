@@ -948,6 +948,20 @@ class APIClient(QObject):
             invalidate_cache=["evaluaciones"],
         )
 
+    def invalidate_cache_type(self, cache_type: str):
+        """Invalidar caché de evaluaciones"""
+        keys_to_delete = []
+        for key in list(self.cache.keys()):
+            if "evaluaciones" in key.lower():
+                keys_to_delete.append(key)
+
+        for key in keys_to_delete:
+            del self.cache[key]
+
+        # Notificar cambios
+        self.evaluaciones_changed.emit()
+        self.data_changed.emit("evaluaciones")
+
     def create_pregunta(
         self, modulo_id: int, evaluacion_id: int, data: Dict
     ) -> Dict[str, Any]:
