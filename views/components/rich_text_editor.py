@@ -1,11 +1,10 @@
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QTextEdit,
     QPushButton,
     QToolBar,
-    QAction,
     QColorDialog,
     QFontComboBox,
     QComboBox,
@@ -16,8 +15,15 @@ from PyQt5.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
 )
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QTextCursor, QTextCharFormat, QFont, QColor, QTextListFormat
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import (
+    QTextCursor,
+    QTextCharFormat,
+    QFont,
+    QColor,
+    QTextListFormat,
+    QAction,
+)
 import logging
 from utils.paths import resource_path
 
@@ -53,7 +59,7 @@ class LinkDialog(QDialog):
         layout.addLayout(text_layout)
 
         # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -179,7 +185,7 @@ class RichTextEditor(QWidget):
         self.align_left_btn.setFixedWidth(30)
         self.align_left_btn.setToolTip("Alinear izquierda")
         self.align_left_btn.clicked.connect(
-            lambda: self.editor.setAlignment(Qt.AlignLeft)
+            lambda: self.editor.setAlignment(Qt.AlignmentFlag.AlignLeft)
         )
         toolbar_layout.addWidget(self.align_left_btn)
 
@@ -188,7 +194,7 @@ class RichTextEditor(QWidget):
         self.align_center_btn.setFixedWidth(30)
         self.align_center_btn.setToolTip("Centrar")
         self.align_center_btn.clicked.connect(
-            lambda: self.editor.setAlignment(Qt.AlignCenter)
+            lambda: self.editor.setAlignment(Qt.AlignmentFlag.AlignCenter)
         )
         toolbar_layout.addWidget(self.align_center_btn)
 
@@ -197,7 +203,7 @@ class RichTextEditor(QWidget):
         self.align_right_btn.setFixedWidth(30)
         self.align_right_btn.setToolTip("Alinear derecha")
         self.align_right_btn.clicked.connect(
-            lambda: self.editor.setAlignment(Qt.AlignRight)
+            lambda: self.editor.setAlignment(Qt.AlignmentFlag.AlignRight)
         )
         toolbar_layout.addWidget(self.align_right_btn)
 
@@ -206,7 +212,7 @@ class RichTextEditor(QWidget):
         self.align_justify_btn.setFixedWidth(30)
         self.align_justify_btn.setToolTip("Justificar")
         self.align_justify_btn.clicked.connect(
-            lambda: self.editor.setAlignment(Qt.AlignJustify)
+            lambda: self.editor.setAlignment(Qt.AlignmentFlag.AlignJustify)
         )
         toolbar_layout.addWidget(self.align_justify_btn)
 
@@ -317,9 +323,8 @@ class RichTextEditor(QWidget):
 
     def toggle_bold(self):
         fmt = self.editor.currentCharFormat()
-        fmt.setFontWeight(
-            QFont.Bold if not fmt.fontWeight() == QFont.Bold else QFont.Normal
-        )
+        weight = QFont.Weight.Bold if fmt.fontWeight() != QFont.Weight.Bold else QFont.Weight.Normal
+        fmt.setFontWeight(weight)
         self.editor.mergeCurrentCharFormat(fmt)
 
     def toggle_italic(self):
@@ -341,15 +346,15 @@ class RichTextEditor(QWidget):
 
     def insert_bullet_list(self):
         cursor = self.editor.textCursor()
-        cursor.insertList(QTextListFormat.ListDisc)
+        cursor.insertList(QTextListFormat.Style.ListDisc)
 
     def insert_number_list(self):
         cursor = self.editor.textCursor()
-        cursor.insertList(QTextListFormat.ListDecimal)
+        cursor.insertList(QTextListFormat.Style.ListDecimal)
 
     def insert_link(self):
         dialog = LinkDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             if data["url"] and data["text"]:
                 html = f'<a href="{data["url"]}">{data["text"]}</a>'
@@ -370,16 +375,16 @@ class RichTextEditor(QWidget):
         # Actualizar estado de los botones según el formato actual
         fmt = self.editor.currentCharFormat()
 
-        self.bold_btn.setChecked(fmt.fontWeight() == QFont.Bold)
+        self.bold_btn.setChecked(fmt.fontWeight() == QFont.Weight.Bold)
         self.italic_btn.setChecked(fmt.fontItalic())
         self.underline_btn.setChecked(fmt.fontUnderline())
 
         # Actualizar alineación
         alignment = self.editor.alignment()
-        self.align_left_btn.setChecked(alignment == Qt.AlignLeft)
-        self.align_center_btn.setChecked(alignment == Qt.AlignCenter)
-        self.align_right_btn.setChecked(alignment == Qt.AlignRight)
-        self.align_justify_btn.setChecked(alignment == Qt.AlignJustify)
+        self.align_left_btn.setChecked(alignment == Qt.AlignmentFlag.AlignLeft)
+        self.align_center_btn.setChecked(alignment == Qt.AlignmentFlag.AlignCenter)
+        self.align_right_btn.setChecked(alignment == Qt.AlignmentFlag.AlignRight)
+        self.align_justify_btn.setChecked(alignment == Qt.AlignmentFlag.AlignJustify)
 
         # Actualizar fuente y tamaño
         if fmt.font().family():

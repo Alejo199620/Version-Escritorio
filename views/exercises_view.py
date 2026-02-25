@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -23,326 +23,17 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QSplitter,
+    QAbstractItemView,
+    QDoubleSpinBox,
+    QStackedWidget,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QColor
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QColor
 import logging
 from utils.paths import resource_path
+from views.styles import StyleHelper
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-
-class ExerciseDialog(QDialog):
-    def __init__(
-        self, api_client, modulo_id, leccion_id, exercise_data=None, parent=None
-    ):
-        super().__init__(parent)
-        self.api_client = api_client
-        self.modulo_id = modulo_id
-        self.leccion_id = leccion_id
-        self.exercise_data = exercise_data
-        self.opciones = []
-        self.setWindowTitle("Editar Ejercicio" if exercise_data else "Nuevo Ejercicio")
-        self.setMinimumSize(700, 600)
-        self.setup_ui()
-
-        if exercise_data:
-            self.load_exercise_data()
-
-    def setup_ui(self):
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #f8f9fa;
-            }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox {
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 13px;
-                background-color: white;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {
-                border-color: #3498db;
-            }
-            QLabel {
-                font-size: 13px;
-                color: #2c3e50;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-            QListWidget {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-            QListWidget::item:selected {
-                background-color: #3498db;
-                color: white;
-            }
-        """
-        )
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(30, 30, 30, 30)
-
-        # Título
-        title = QLabel(
-            "✏️ " + ("Editar Ejercicio" if self.exercise_data else "Nuevo Ejercicio")
-        )
-        title.setFont(QFont("Segoe UI", 18, QFont.Bold))
-        title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-        layout.addWidget(title)
-
-        # Tipo de ejercicio
-        tipo_layout = QHBoxLayout()
-        tipo_layout.addWidget(QLabel("Tipo:"))
-
-        self.tipo_combo = QComboBox()
-        self.tipo_combo.addItems(
-            ["seleccion_multiple", "verdadero_falso", "arrastrar_soltar"]
-        )
-        self.tipo_combo.currentTextChanged.connect(self.cambiar_tipo)
-        tipo_layout.addWidget(self.tipo_combo)
-        tipo_layout.addStretch()
-
-        layout.addLayout(tipo_layout)
-
-        # Pregunta
-        pregunta_label = QLabel("Pregunta:")
-        pregunta_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(pregunta_label)
-
-        self.pregunta_input = QTextEdit()
-        self.pregunta_input.setPlaceholderText("Escribe la pregunta del ejercicio...")
-        self.pregunta_input.setMaximumHeight(100)
-        layout.addWidget(self.pregunta_input)
-
-        # Opciones (cambia según el tipo)
-        self.opciones_group = QGroupBox("Opciones")
-        self.opciones_layout = QVBoxLayout()
-
-        # Toolbar para opciones
-        opciones_toolbar = QHBoxLayout()
-
-        self.add_opcion_btn = QPushButton("➕ Agregar Opción")
-        self.add_opcion_btn.clicked.connect(self.agregar_opcion)
-        opciones_toolbar.addWidget(self.add_opcion_btn)
-
-        self.remove_opcion_btn = QPushButton("🗑️ Eliminar Seleccionada")
-        self.remove_opcion_btn.clicked.connect(self.eliminar_opcion)
-        opciones_toolbar.addWidget(self.remove_opcion_btn)
-
-        opciones_toolbar.addStretch()
-        self.opciones_layout.addLayout(opciones_toolbar)
-
-        # Lista de opciones
-        self.opciones_list = QListWidget()
-        self.opciones_list.setMaximumHeight(200)
-        self.opciones_layout.addWidget(self.opciones_list)
-
-        self.opciones_group.setLayout(self.opciones_layout)
-        layout.addWidget(self.opciones_group)
-
-        # Orden y estado
-        bottom_layout = QHBoxLayout()
-
-        # Orden
-        orden_layout = QHBoxLayout()
-        orden_layout.addWidget(QLabel("Orden:"))
-        self.orden_input = QSpinBox()
-        self.orden_input.setMinimum(1)
-        self.orden_input.setMaximum(100)
-        self.orden_input.setValue(1)
-        self.orden_input.setFixedWidth(80)
-        orden_layout.addWidget(self.orden_input)
-        bottom_layout.addLayout(orden_layout)
-
-        bottom_layout.addStretch()
-
-        # Estado
-        estado_layout = QHBoxLayout()
-        estado_layout.addWidget(QLabel("Estado:"))
-        self.estado_combo = QComboBox()
-        self.estado_combo.addItems(["activo", "inactivo"])
-        self.estado_combo.setFixedWidth(100)
-        estado_layout.addWidget(self.estado_combo)
-        bottom_layout.addLayout(estado_layout)
-
-        layout.addLayout(bottom_layout)
-
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Guardar")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
-
-        buttons.button(QDialogButtonBox.Ok).setStyleSheet(
-            """
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                padding: 8px 30px;
-                border-radius: 4px;
-                font-weight: bold;
-                min-width: 100px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """
-        )
-        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(
-            """
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                padding: 8px 30px;
-                border-radius: 4px;
-                font-weight: bold;
-                min-width: 100px;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-        """
-        )
-
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-
-        layout.addWidget(buttons)
-
-        self.cambiar_tipo(self.tipo_combo.currentText())
-
-    def cambiar_tipo(self, tipo):
-        """Cambiar la interfaz según el tipo de ejercicio"""
-        if tipo == "verdadero_falso":
-            self.add_opcion_btn.setEnabled(False)
-            self.remove_opcion_btn.setEnabled(False)
-            self.opciones_list.clear()
-
-            # Agregar opciones por defecto
-            item1 = QListWidgetItem("Verdadero")
-            item1.setData(
-                Qt.UserRole, {"texto": "Verdadero", "es_correcta": True, "orden": 1}
-            )
-            self.opciones_list.addItem(item1)
-
-            item2 = QListWidgetItem("Falso")
-            item2.setData(
-                Qt.UserRole, {"texto": "Falso", "es_correcta": False, "orden": 2}
-            )
-            self.opciones_list.addItem(item2)
-        else:
-            self.add_opcion_btn.setEnabled(True)
-            self.remove_opcion_btn.setEnabled(True)
-
-    def agregar_opcion(self):
-        """Agregar una nueva opción"""
-        dialog = OpcionDialog(self.tipo_combo.currentText())
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-            item_text = data["texto"]
-            if self.tipo_combo.currentText() == "arrastrar_soltar" and data.get(
-                "pareja"
-            ):
-                item_text = f"{data['texto']} → {data['pareja']}"
-
-            item = QListWidgetItem(item_text)
-            item.setData(Qt.UserRole, data)
-
-            # Marcar si es correcta
-            if data.get("es_correcta"):
-                item.setForeground(QColor("#27ae60"))
-                item.setIcon(
-                    self.style().standardIcon(self.style().SP_DialogApplyButton)
-                )
-
-            self.opciones_list.addItem(item)
-
-    def eliminar_opcion(self):
-        """Eliminar opción seleccionada"""
-        current_row = self.opciones_list.currentRow()
-        if current_row >= 0:
-            self.opciones_list.takeItem(current_row)
-
-    def load_exercise_data(self):
-        """Cargar datos del ejercicio"""
-        self.pregunta_input.setPlainText(self.exercise_data.get("pregunta", ""))
-        self.orden_input.setValue(self.exercise_data.get("orden", 1))
-
-        tipo = self.exercise_data.get("tipo", "seleccion_multiple")
-        index = self.tipo_combo.findText(tipo)
-        if index >= 0:
-            self.tipo_combo.setCurrentIndex(index)
-
-        # Cargar opciones
-        opciones = self.exercise_data.get("opciones", [])
-        self.opciones_list.clear()
-
-        for opcion in opciones:
-            item_text = opcion["texto"]
-            if tipo == "arrastrar_soltar" and opcion.get("pareja_arrastre"):
-                item_text = f"{opcion['texto']} → {opcion['pareja_arrastre']}"
-
-            item = QListWidgetItem(item_text)
-            item.setData(
-                Qt.UserRole,
-                {
-                    "id": opcion.get("id"),
-                    "texto": opcion["texto"],
-                    "es_correcta": opcion.get("es_correcta", False),
-                    "pareja": opcion.get("pareja_arrastre"),
-                    "orden": opcion.get("orden", 1),
-                },
-            )
-
-            if opcion.get("es_correcta"):
-                item.setForeground(QColor("#27ae60"))
-
-            self.opciones_list.addItem(item)
-
-        index = self.estado_combo.findText(self.exercise_data.get("estado", "activo"))
-        if index >= 0:
-            self.estado_combo.setCurrentIndex(index)
-
-    def get_data(self):
-        """Obtener datos del formulario"""
-        opciones = []
-        for i in range(self.opciones_list.count()):
-            item = self.opciones_list.item(i)
-            data = item.data(Qt.UserRole)
-            if data:
-                data["orden"] = i + 1
-                opciones.append(data)
-
-        return {
-            "pregunta": self.pregunta_input.toPlainText(),
-            "tipo": self.tipo_combo.currentText(),
-            "orden": self.orden_input.value(),
-            "estado": self.estado_combo.currentText(),
-            "opciones": opciones,
-        }
-
-
-# ... (mantén todos los imports igual) ...
-
 
 class OpcionDialog(QDialog):
     def __init__(self, tipo, parent=None):
@@ -471,7 +162,7 @@ class OpcionDialog(QDialog):
             layout.addWidget(self.texto_input)
 
         # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -480,7 +171,7 @@ class OpcionDialog(QDialog):
         data = {"texto": self.texto_input.text()}
 
         if self.tipo == "arrastrar_soltar":
-            data["pareja"] = self.pareja_input.text()
+            data["pareja_arrastre"] = self.pareja_input.text()
             data["es_correcta"] = True  # En arrastrar, todos los pares son correctos
         elif self.tipo == "seleccion_multiple":
             data["es_correcta"] = self.correcta_check.isChecked()
@@ -491,17 +182,26 @@ class OpcionDialog(QDialog):
 
 
 class ExerciseDialog(QDialog):
+    """
+    Diálogo universal para crear o editar contenido interactivo (Ejercicios o Preguntas).
+    Diseño unificado con StyleHelper para garantizar consistencia visual.
+    """
     def __init__(
-        self, api_client, modulo_id, leccion_id, exercise_data=None, parent=None
+        self, api_client, modulo_id, content_id, exercise_data=None, is_evaluation=False, parent=None
     ):
         super().__init__(parent)
         self.api_client = api_client
         self.modulo_id = modulo_id
-        self.leccion_id = leccion_id
+        # content_id puede ser leccion_id o evaluacion_id
+        self.content_id = content_id
         self.exercise_data = exercise_data
+        self.is_evaluation = is_evaluation
         self.opciones = []
-        self.setWindowTitle("Editar Ejercicio" if exercise_data else "Nuevo Ejercicio")
-        self.setMinimumSize(700, 650)
+        self.puntos_input = None
+        self.orden_input = None
+        
+        self.setWindowTitle("Pregunta de Evaluación" if is_evaluation else "Ejercicio de Lección")
+        self.setMinimumSize(750, 700)
         self.setup_ui()
 
         if exercise_data:
@@ -510,409 +210,193 @@ class ExerciseDialog(QDialog):
     def setup_ui(self):
         self.setStyleSheet(
             """
-            QDialog {
-                background-color: #f8f9fa;
-            }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox {
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 13px;
+            QDialog { background-color: #f0f0f0; }
+            QLabel { font-size: 14px; }
+            QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+                padding: 5px;
+                border: 1px solid #ccc;
+                border-radius: 3px;
                 background-color: white;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {
-                border-color: #3498db;
-            }
-            QLabel {
-                font-size: 13px;
-                color: #2c3e50;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-            QListWidget {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-            QListWidget::item:selected {
-                background-color: #3498db;
-                color: white;
             }
         """
         )
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(10)
 
-        # Título
-        title = QLabel(
-            "✏️ " + ("Editar Ejercicio" if self.exercise_data else "Nuevo Ejercicio")
-        )
-        title.setFont(QFont("Segoe UI", 18, QFont.Bold))
-        title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-        layout.addWidget(title)
-
-        # Tipo de ejercicio
-        tipo_layout = QHBoxLayout()
-        tipo_layout.addWidget(QLabel("Tipo:"))
-
+        # Filtros/Header
+        header = QHBoxLayout()
+        header.addWidget(QLabel("Tipo de pregunta:"))
         self.tipo_combo = QComboBox()
         self.tipo_combo.addItems(
             ["seleccion_multiple", "verdadero_falso", "arrastrar_soltar"]
         )
         self.tipo_combo.currentTextChanged.connect(self.cambiar_tipo)
-        tipo_layout.addWidget(self.tipo_combo)
-        tipo_layout.addStretch()
+        header.addWidget(self.tipo_combo)
 
-        layout.addLayout(tipo_layout)
+        if self.is_evaluation:
+            header.addWidget(QLabel("Puntos:"))
+            self.puntos_input = QDoubleSpinBox()
+            self.puntos_input.setRange(0, 100)
+            self.puntos_input.setValue(10)
+            header.addWidget(self.puntos_input)
+        else:
+            header.addWidget(QLabel("Orden:"))
+            self.orden_input = QSpinBox()
+            self.orden_input.setRange(1, 999)
+            header.addWidget(self.orden_input)
 
-        # Pregunta
-        pregunta_label = QLabel("Pregunta:")
-        pregunta_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(pregunta_label)
+        header.addStretch()
+        layout.addLayout(header)
 
+        # Enunciado
+        layout.addWidget(QLabel("Pregunta/Enunciado:"))
         self.pregunta_input = QTextEdit()
-        self.pregunta_input.setPlaceholderText("Escribe la pregunta del ejercicio...")
+        self.pregunta_input.setPlaceholderText("Escriba aquí el enunciado del ejercicio...")
         self.pregunta_input.setMaximumHeight(100)
         layout.addWidget(self.pregunta_input)
 
-        # Opciones (cambia según el tipo)
-        self.opciones_group = QGroupBox("Opciones")
+        # Opciones
+        self.opciones_group = QGroupBox("Opciones / Respuestas")
         self.opciones_layout = QVBoxLayout()
 
-        # Instrucciones según tipo
         self.instrucciones_label = QLabel()
         self.instrucciones_label.setWordWrap(True)
-        self.instrucciones_label.setStyleSheet(
-            """
-            QLabel {
-                background-color: #e8f4fd;
-                color: #1976d2;
-                padding: 10px;
-                border-radius: 4px;
-                font-size: 12px;
-                margin-bottom: 10px;
-            }
-        """
-        )
+        self.instrucciones_label.setStyleSheet("color: #666; font-style: italic;")
         self.opciones_layout.addWidget(self.instrucciones_label)
 
-        # Toolbar para opciones
-        opciones_toolbar = QHBoxLayout()
-
+        btn_layout = QHBoxLayout()
         self.add_opcion_btn = QPushButton("➕ Agregar Opción")
         self.add_opcion_btn.clicked.connect(self.agregar_opcion)
-        opciones_toolbar.addWidget(self.add_opcion_btn)
+        btn_layout.addWidget(self.add_opcion_btn)
 
         self.remove_opcion_btn = QPushButton("🗑️ Eliminar Seleccionada")
         self.remove_opcion_btn.clicked.connect(self.eliminar_opcion)
-        opciones_toolbar.addWidget(self.remove_opcion_btn)
+        btn_layout.addWidget(self.remove_opcion_btn)
+        btn_layout.addStretch()
+        self.opciones_layout.addLayout(btn_layout)
 
-        opciones_toolbar.addStretch()
-        self.opciones_layout.addLayout(opciones_toolbar)
-
-        # Lista de opciones
         self.opciones_list = QListWidget()
-        self.opciones_list.setMaximumHeight(200)
         self.opciones_layout.addWidget(self.opciones_list)
 
         self.opciones_group.setLayout(self.opciones_layout)
         layout.addWidget(self.opciones_group)
 
-        # Orden y estado
-        bottom_layout = QHBoxLayout()
-
-        # Orden
-        orden_layout = QHBoxLayout()
-        orden_layout.addWidget(QLabel("Orden:"))
-        self.orden_input = QSpinBox()
-        self.orden_input.setMinimum(1)
-        self.orden_input.setMaximum(100)
-        self.orden_input.setValue(1)
-        self.orden_input.setFixedWidth(80)
-        orden_layout.addWidget(self.orden_input)
-        bottom_layout.addLayout(orden_layout)
-
-        bottom_layout.addStretch()
-
-        # Estado
-        estado_layout = QHBoxLayout()
-        estado_layout.addWidget(QLabel("Estado:"))
+        # Footer
+        footer = QHBoxLayout()
+        footer.addWidget(QLabel("Estado:"))
         self.estado_combo = QComboBox()
         self.estado_combo.addItems(["activo", "inactivo"])
-        self.estado_combo.setFixedWidth(100)
-        estado_layout.addWidget(self.estado_combo)
-        bottom_layout.addLayout(estado_layout)
+        footer.addWidget(self.estado_combo)
+        footer.addStretch()
 
-        layout.addLayout(bottom_layout)
-
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Guardar")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
-
-        buttons.button(QDialogButtonBox.Ok).setStyleSheet(
-            """
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                padding: 8px 30px;
-                border-radius: 4px;
-                font-weight: bold;
-                min-width: 100px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(
-            """
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                padding: 8px 30px;
-                border-radius: 4px;
-                font-weight: bold;
-                min-width: 100px;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-        """
-        )
-
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-
-        layout.addWidget(buttons)
+        footer.addWidget(buttons)
+        layout.addLayout(footer)
 
         self.cambiar_tipo(self.tipo_combo.currentText())
 
+
     def cambiar_tipo(self, tipo):
-        """Cambiar la interfaz según el tipo de ejercicio"""
-        # Actualizar instrucciones
+        """Actualizar UI según el tipo de contenido"""
         if tipo == "arrastrar_soltar":
-            self.instrucciones_label.setText(
-                "📌 Para preguntas de arrastrar y soltar:\n"
-                "• Agrega pares de (Término → Definición)\n"
-                "• Cada término debe tener su definición correspondiente\n"
-                "• El usuario deberá arrastrar cada término hasta su definición"
-            )
+            self.instrucciones_label.setText("Crea pares de (Término → Definición). El usuario deberá emparejarlos.")
             self.add_opcion_btn.setEnabled(True)
-            self.remove_opcion_btn.setEnabled(True)
             self.opciones_list.clear()
-
         elif tipo == "verdadero_falso":
-            self.instrucciones_label.setText(
-                "📌 Para preguntas de Verdadero/Falso:\n"
-                "• Se generarán automáticamente las opciones 'Verdadero' y 'Falso'\n"
-                "• Marca cuál es la respuesta correcta"
-            )
+            self.instrucciones_label.setText("Selecciona la respuesta correcta (Verdadero o Falso).")
             self.add_opcion_btn.setEnabled(False)
-            self.remove_opcion_btn.setEnabled(False)
             self.opciones_list.clear()
-
-            # Agregar opciones por defecto
-            item1 = QListWidgetItem("✓ Verdadero")
-            item1.setData(
-                Qt.UserRole, {"texto": "Verdadero", "es_correcta": True, "orden": 1}
-            )
-            item1.setForeground(QColor("#27ae60"))
-            self.opciones_list.addItem(item1)
-
-            item2 = QListWidgetItem("✗ Falso")
-            item2.setData(
-                Qt.UserRole, {"texto": "Falso", "es_correcta": False, "orden": 2}
-            )
-            item2.setForeground(QColor("#e74c3c"))
-            self.opciones_list.addItem(item2)
-
-        else:  # seleccion_multiple
-            self.instrucciones_label.setText(
-                "📌 Para preguntas de selección múltiple:\n"
-                "• Agrega todas las opciones posibles\n"
-                "• Marca cuál(es) es la respuesta correcta usando el checkbox"
-            )
+            self._add_default_vf_options()
+        else:
+            self.instrucciones_label.setText("Añade opciones y marca la(s) correcta(s) usando el checkbox del diálogo.")
             self.add_opcion_btn.setEnabled(True)
-            self.remove_opcion_btn.setEnabled(True)
+
+    def _add_default_vf_options(self):
+        v = QListWidgetItem("✓ Verdadero")
+        v.setData(Qt.ItemDataRole.UserRole, {"texto": "Verdadero", "es_correcta": True, "orden": 1})
+        v.setForeground(QColor("#059669"))
+        self.opciones_list.addItem(v)
+        f = QListWidgetItem("✗ Falso")
+        f.setData(Qt.ItemDataRole.UserRole, {"texto": "Falso", "es_correcta": False, "orden": 2})
+        f.setForeground(QColor("#dc2626"))
+        self.opciones_list.addItem(f)
 
     def agregar_opcion(self):
-        """Agregar una nueva opción"""
         dialog = OpcionDialog(self.tipo_combo.currentText(), self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
-
+            text = data["texto"]
             if self.tipo_combo.currentText() == "arrastrar_soltar":
-                # Para arrastrar y soltar, mostrar como par
-                item_text = f"📌 {data['texto']}  →  📚 {data['pareja']}"
-                item = QListWidgetItem(item_text)
-                item.setForeground(QColor("#e67e22"))
+                text = f"{text} → {data['pareja_arrastre']}"
 
-                # Guardar datos
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "texto": data["texto"],
-                        "pareja": data["pareja"],
-                        "es_correcta": True,
-                        "orden": self.opciones_list.count() + 1,
-                    },
-                )
+            item = QListWidgetItem(text)
+            if data["es_correcta"]:
+                item.setText(f"✅ {text}")
+                item.setForeground(QColor("#27ae60"))
 
-            elif self.tipo_combo.currentText() == "seleccion_multiple":
-                item_text = data["texto"]
-                item = QListWidgetItem(item_text)
-
-                if data.get("es_correcta"):
-                    item.setForeground(QColor("#27ae60"))
-                    item.setIcon(
-                        self.style().standardIcon(self.style().SP_DialogApplyButton)
-                    )
-
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "texto": data["texto"],
-                        "es_correcta": data["es_correcta"],
-                        "orden": self.opciones_list.count() + 1,
-                    },
-                )
-
+            item.setData(Qt.ItemDataRole.UserRole, data)
             self.opciones_list.addItem(item)
 
     def eliminar_opcion(self):
-        """Eliminar opción seleccionada"""
-        current_row = self.opciones_list.currentRow()
-        if current_row >= 0:
-            self.opciones_list.takeItem(current_row)
+        for item in self.opciones_list.selectedItems():
+            self.opciones_list.takeItem(self.opciones_list.row(item))
 
     def load_exercise_data(self):
-        """Cargar datos del ejercicio"""
-        self.pregunta_input.setPlainText(self.exercise_data.get("pregunta", ""))
-        self.orden_input.setValue(self.exercise_data.get("orden", 1))
+        data = self.exercise_data
+        self.pregunta_input.setText(data.get("pregunta", ""))
+        self.tipo_combo.setCurrentText(data.get("tipo", "seleccion_multiple"))
+        self.estado_combo.setCurrentText(data.get("estado", "activo"))
+        
+        if self.is_evaluation and self.puntos_input:
+            self.puntos_input.setValue(float(data.get("puntos", 10)))
+        elif self.orden_input:
+            self.orden_input.setValue(int(data.get("orden", 1)))
 
-        tipo = self.exercise_data.get("tipo", "seleccion_multiple")
-        index = self.tipo_combo.findText(tipo)
-        if index >= 0:
-            self.tipo_combo.setCurrentIndex(index)
-
-        # Cargar opciones
-        opciones = self.exercise_data.get("opciones", [])
         self.opciones_list.clear()
+        for opt in data.get("opciones", []):
+            text = opt.get("texto", "")
+            if data.get("tipo") == "arrastrar_soltar":
+                text = f"{text} → {opt.get('pareja_arrastre', '')}"
 
-        for opcion in opciones:
-            if tipo == "arrastrar_soltar":
-                item_text = (
-                    f"📌 {opcion['texto']}  →  📚 {opcion.get('pareja_arrastre', '')}"
-                )
-                item = QListWidgetItem(item_text)
-                item.setForeground(QColor("#e67e22"))
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "id": opcion.get("id"),
-                        "texto": opcion["texto"],
-                        "pareja": opcion.get("pareja_arrastre"),
-                        "es_correcta": True,
-                        "orden": opcion.get("orden", 1),
-                    },
-                )
-
-            elif tipo == "verdadero_falso":
-                item_text = "✓ Verdadero" if opcion.get("es_correcta") else "✗ Falso"
-                item = QListWidgetItem(item_text)
-                if opcion.get("es_correcta"):
-                    item.setForeground(QColor("#27ae60"))
-                else:
-                    item.setForeground(QColor("#e74c3c"))
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "id": opcion.get("id"),
-                        "texto": opcion["texto"],
-                        "es_correcta": opcion.get("es_correcta", False),
-                        "orden": opcion.get("orden", 1),
-                    },
-                )
-
-            else:  # seleccion_multiple
-                item_text = opcion["texto"]
-                item = QListWidgetItem(item_text)
-                if opcion.get("es_correcta"):
-                    item.setForeground(QColor("#27ae60"))
-                    item.setIcon(
-                        self.style().standardIcon(self.style().SP_DialogApplyButton)
-                    )
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "id": opcion.get("id"),
-                        "texto": opcion["texto"],
-                        "es_correcta": opcion.get("es_correcta", False),
-                        "orden": opcion.get("orden", 1),
-                    },
-                )
-
+            item = QListWidgetItem(text)
+            if opt.get("es_correcta"):
+                item.setText(f"✅ {text}")
+                item.setForeground(QColor("#27ae60"))
+            item.setData(Qt.ItemDataRole.UserRole, opt)
             self.opciones_list.addItem(item)
 
-        index = self.estado_combo.findText(self.exercise_data.get("estado", "activo"))
-        if index >= 0:
-            self.estado_combo.setCurrentIndex(index)
-
     def get_data(self):
-        """Obtener datos del formulario"""
         opciones = []
         for i in range(self.opciones_list.count()):
             item = self.opciones_list.item(i)
-            data = item.data(Qt.UserRole)
-            if data:
-                data["orden"] = i + 1
+            opt_data = item.data(Qt.ItemDataRole.UserRole)
+            if opt_data:
+                opt_data["orden"] = i + 1
+                opciones.append(opt_data)
 
-                # Adaptar según tipo
-                if self.tipo_combo.currentText() == "arrastrar_soltar":
-                    opciones.append(
-                        {
-                            "texto": data["texto"],
-                            "pareja_arrastre": data.get("pareja", ""),
-                            "es_correcta": True,
-                            "orden": i + 1,
-                        }
-                    )
-                else:
-                    opciones.append(
-                        {
-                            "texto": data["texto"],
-                            "es_correcta": data.get("es_correcta", False),
-                            "orden": i + 1,
-                        }
-                    )
-
-        return {
-            "pregunta": self.pregunta_input.toPlainText(),
+        data = {
+            "pregunta": self.pregunta_input.toPlainText().strip(),
             "tipo": self.tipo_combo.currentText(),
-            "orden": self.orden_input.value(),
             "estado": self.estado_combo.currentText(),
-            "opciones": opciones,
+            "opciones": opciones
         }
+        
+        if self.is_evaluation and self.puntos_input:
+            data["puntos"] = self.puntos_input.value()
+        elif self.orden_input:
+            data["orden"] = self.orden_input.value()
+            
+        return data
 
 
-# ... (el resto de la clase ExercisesView se mantiene igual) ...
+# ============================================================================
+# VISTA PRINCIPAL DE EJERCICIOS
+# ============================================================================
 
 
 class ExercisesView(QWidget):
@@ -926,6 +410,9 @@ class ExercisesView(QWidget):
         self.leccion_actual = None
         self.setup_ui()
         self.load_modulos()
+        
+        # Conectar señales para actualización en tiempo real
+        self.api_client.data_changed.connect(self._on_data_changed)
 
     def setup_ui(self):
         self.setStyleSheet(
@@ -967,7 +454,7 @@ class ExercisesView(QWidget):
         header_layout = QHBoxLayout()
 
         title = QLabel("✏️ Ejercicios")
-        title.setFont(QFont("Segoe UI", 22, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
         title.setStyleSheet("color: #2c3e50;")
 
         self.new_btn = QPushButton("➕ Nuevo Ejercicio")
@@ -1040,37 +527,75 @@ class ExercisesView(QWidget):
 
         layout.addLayout(selectors_layout)
 
-        # Tabla
+        # Contenedor apilado (StackedWidget) para Placeholder / Tabla
+        self.stack = QStackedWidget()
+
+        # --- PÁGINA 0: PLACEHOLDER ---
+        self.placeholder = self._create_placeholder()
+        self.stack.addWidget(self.placeholder)
+
+        # --- PÁGINA 1: TABLA ---
+        table_container = QWidget()
+        table_layout = QVBoxLayout(table_container)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(
             ["ID", "Pregunta", "Tipo", "Orden", "Acciones"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table_layout.addWidget(self.table)
 
-        layout.addWidget(self.table)
+        self.stack.addWidget(table_container)
+        layout.addWidget(self.stack)
 
         self.setLayout(layout)
 
+    def _create_placeholder(self) -> QFrame:
+        """Crea la vista de placeholder"""
+        frame = QFrame()
+        frame.setStyleSheet("background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;")
+        
+        layout = QVBoxLayout(frame)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
+
+        icon = QLabel("✏️")
+        icon.setFont(QFont("Segoe UI", 64))
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+
+        text = QLabel("Seleccione un módulo y lección para gestionar ejercicios")
+        text.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        text.setStyleSheet("color: #64748b;")
+        text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(text)
+
+        subtext = QLabel("Use los selectores superiores para comenzar")
+        subtext.setStyleSheet("color: #94a3b8; font-size: 14px;")
+        subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtext)
+
+        return frame
+
     def load_modulos(self):
         logger.debug("Cargando módulos...")
+        # Intentar obtener de caché primero para respuesta instantánea
         result = self.api_client.get_modulos()
 
         if result["success"]:
             data = result.get("data", [])
-            if isinstance(data, list):
-                self.modulos = data
-            elif isinstance(data, dict) and "data" in data:
-                self.modulos = data["data"]
-            else:
-                self.modulos = []
+            self.modulos = data if isinstance(data, list) else data.get("data", []) if isinstance(data, dict) else []
 
+            self.modulo_combo.setUpdatesEnabled(False)
             self.modulo_combo.clear()
             self.modulo_combo.addItem("Seleccione un módulo", None)
             for modulo in self.modulos:
                 self.modulo_combo.addItem(f"{modulo.get('titulo')}", modulo.get("id"))
+            self.modulo_combo.setUpdatesEnabled(True)
 
             self.leccion_combo.clear()
             self.leccion_combo.addItem("Primero seleccione un módulo", None)
@@ -1095,6 +620,7 @@ class ExercisesView(QWidget):
 
         if self.modulo_actual:
             self.load_lecciones(modulo_id)
+            self.stack.setCurrentIndex(0)
 
     def load_lecciones(self, modulo_id):
         logger.debug(f"Cargando lecciones del módulo {modulo_id}...")
@@ -1102,19 +628,16 @@ class ExercisesView(QWidget):
 
         if result["success"]:
             data = result.get("data", [])
-            if isinstance(data, list):
-                self.lecciones = data
-            elif isinstance(data, dict) and "data" in data:
-                self.lecciones = data["data"]
-            else:
-                self.lecciones = []
+            self.lecciones = data if isinstance(data, list) else data.get("data", []) if isinstance(data, dict) else []
 
+            self.leccion_combo.setUpdatesEnabled(False)
             self.leccion_combo.clear()
             self.leccion_combo.addItem("Seleccione una lección", None)
             for leccion in self.lecciones:
                 self.leccion_combo.addItem(
                     f"{leccion.get('titulo')}", leccion.get("id")
                 )
+            self.leccion_combo.setUpdatesEnabled(True)
         else:
             QMessageBox.warning(
                 self, "Error", f"Error al cargar lecciones: {result.get('error')}"
@@ -1125,23 +648,25 @@ class ExercisesView(QWidget):
             self.leccion_actual = None
             self.new_btn.setEnabled(False)
             self.ejercicios = []
-            self.actualizar_tabla([])
+            self.stack.setCurrentIndex(0)
             return
+
+        self.stack.setCurrentIndex(1)
 
         leccion_id = self.leccion_combo.currentData()
         self.leccion_actual = next(
             (l for l in self.lecciones if l.get("id") == leccion_id), None
         )
 
-        if self.leccion_actual:
+        if self.modulo_actual:
             self.new_btn.setEnabled(True)
             self.load_ejercicios(self.modulo_actual.get("id"), leccion_id)
 
-    def load_ejercicios(self, modulo_id, leccion_id):
+    def load_ejercicios(self, modulo_id, leccion_id, force_refresh=False):
+        """Cargar ejercicios de la lección"""
         logger.debug(f"Cargando ejercicios de la lección {leccion_id}...")
-        self.table.setRowCount(0)
-
-        result = self.api_client.get_ejercicios(modulo_id, leccion_id)
+        
+        result = self.api_client.get_ejercicios(modulo_id, leccion_id, force_refresh=force_refresh)
 
         if result["success"]:
             data = result.get("data", [])
@@ -1164,6 +689,7 @@ class ExercisesView(QWidget):
             self.actualizar_tabla([])
 
     def actualizar_tabla(self, ejercicios):
+        self.table.setUpdatesEnabled(False)
         self.table.setRowCount(len(ejercicios))
 
         for row, ejercicio in enumerate(ejercicios):
@@ -1251,6 +777,8 @@ class ExercisesView(QWidget):
             acciones_layout.addStretch()
 
             self.table.setCellWidget(row, 4, acciones)
+        
+        self.table.setUpdatesEnabled(True)
 
     def nuevo_ejercicio(self):
         if not self.modulo_actual or not self.leccion_actual:
@@ -1258,10 +786,12 @@ class ExercisesView(QWidget):
             return
 
         dialog = ExerciseDialog(
-            self.api_client, self.modulo_actual.get("id"), self.leccion_actual.get("id")
+            self.api_client, 
+            self.modulo_actual.get("id") if self.modulo_actual else None,
+            self.leccion_actual.get("id") if self.leccion_actual else None
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
             result = self.api_client.create_ejercicio(
@@ -1269,9 +799,8 @@ class ExercisesView(QWidget):
             )
 
             if result["success"]:
-                QMessageBox.information(self, "Éxito", "Ejercicio creado correctamente")
                 self.load_ejercicios(
-                    self.modulo_actual.get("id"), self.leccion_actual.get("id")
+                    self.modulo_actual.get("id"), self.leccion_actual.get("id"), force_refresh=True
                 )
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
@@ -1287,7 +816,7 @@ class ExercisesView(QWidget):
             ejercicio,
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
             result = self.api_client.update_ejercicio(
@@ -1298,9 +827,8 @@ class ExercisesView(QWidget):
             )
 
             if result["success"]:
-                QMessageBox.information(self, "Éxito", "Ejercicio actualizado")
                 self.load_ejercicios(
-                    self.modulo_actual.get("id"), self.leccion_actual.get("id")
+                    self.modulo_actual.get("id"), self.leccion_actual.get("id"), force_refresh=True
                 )
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
@@ -1310,10 +838,10 @@ class ExercisesView(QWidget):
             self,
             "Confirmar",
             f"¿Eliminar este ejercicio?",
-            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             result = self.api_client.delete_ejercicio(
                 self.modulo_actual.get("id"),
                 self.leccion_actual.get("id"),
@@ -1322,7 +850,19 @@ class ExercisesView(QWidget):
 
             if result["success"]:
                 self.load_ejercicios(
-                    self.modulo_actual.get("id"), self.leccion_actual.get("id")
+                    self.modulo_actual.get("id"), self.leccion_actual.get("id"), force_refresh=True
                 )
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+
+    def _on_data_changed(self, data_type: str):
+        """Manejador para actualizaciones en tiempo real"""
+        if data_type in ["ejercicios", "lecciones", "modulos"]:
+            if self.modulo_actual and self.leccion_actual:
+                self.load_ejercicios(
+                    self.modulo_actual.get("id"), self.leccion_actual.get("id"), force_refresh=True
+                )
+            elif data_type == "modulos":
+                self.load_modulos()
+            elif data_type == "lecciones" and self.modulo_actual:
+                self.cambiar_modulo(self.modulo_combo.currentIndex())

@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -23,14 +23,18 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QSplitter,
     QFrame,
+    QAbstractItemView,
+    QStackedWidget,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QColor
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QColor
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
 from utils.paths import resource_path
+from views.styles import StyleHelper
+from views.exercises_view import ExerciseDialog
 
 
 class EvaluationConfigDialog(QDialog):
@@ -54,189 +58,155 @@ class EvaluationConfigDialog(QDialog):
 
     def setup_ui(self):
         self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #f8f9fa;
-            }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+            f"""
+            QDialog {{ background-color: white; }}
+            QLineEdit, QComboBox, QSpinBox {{
                 padding: 10px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-                font-size: 13px;
-                background-color: white;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-                border-color: #3498db;
-            }
-            QLabel {
-                font-size: 13px;
-                color: #2c3e50;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #e0e0e0;
+                border: 2px solid #e9ecef;
                 border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
+                font-size: 13px;
+                background-color: #f8fafc;
+            }}
+            QLineEdit:focus, QComboBox:focus {{
+                border-color: {StyleHelper.PRIMARY_COLOR};
+                background-color: white;
+            }}
+            QLabel {{ font-size: 13px; color: #1e293b; }}
         """
         )
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(15)
+        layout.setSpacing(20)
         layout.setContentsMargins(30, 30, 30, 30)
 
         # Título
-        title = QLabel("⚙️ Configuración de Evaluación")
-        title.setFont(QFont("Segoe UI", 22, QFont.Bold))
-        title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        title = QLabel("⚙️ Configurar Evaluación")
+        title.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        title.setStyleSheet("color: #1e293b; margin-bottom: 5px;")
         layout.addWidget(title)
 
-        # Formulario
+        # --- FORMULARIO ---
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
-        form_layout.setLabelAlignment(Qt.AlignRight)
 
-        # Título
         self.titulo_input = QLineEdit()
-        self.titulo_input.setPlaceholderText("Ej: Evaluación Final de HTML")
-        form_layout.addRow("Título:", self.titulo_input)
+        self.titulo_input.setPlaceholderText("Ej: Evaluación Final de Módulo")
+        self.titulo_input.textChanged.connect(self.actualizar_resumen)
+        form_layout.addRow("Título de la Evaluación:", self.titulo_input)
 
-        # Descripción
-        self.descripcion_input = QTextEdit()
-        self.descripcion_input.setPlaceholderText("Descripción de la evaluación...")
-        self.descripcion_input.setMaximumHeight(80)
-        form_layout.addRow("Descripción:", self.descripcion_input)
-
-        # Número de preguntas
         self.num_preguntas_input = QSpinBox()
-        self.num_preguntas_input.setMinimum(1)
-        self.num_preguntas_input.setMaximum(50)
+        self.num_preguntas_input.setRange(1, 50)
         self.num_preguntas_input.setValue(10)
-        form_layout.addRow("N° Preguntas:", self.num_preguntas_input)
+        self.num_preguntas_input.valueChanged.connect(self.actualizar_resumen)
+        form_layout.addRow("Número de Preguntas:", self.num_preguntas_input)
 
-        # Tiempo límite
-        tiempo_layout = QHBoxLayout()
         self.tiempo_input = QSpinBox()
-        self.tiempo_input.setMinimum(5)
-        self.tiempo_input.setMaximum(180)
+        self.tiempo_input.setRange(5, 180)
         self.tiempo_input.setValue(30)
-        tiempo_layout.addWidget(self.tiempo_input)
-        tiempo_layout.addWidget(QLabel("minutos"))
-        tiempo_layout.addStretch()
-        form_layout.addRow("Tiempo límite:", tiempo_layout)
+        self.tiempo_input.setSuffix(" minutos")
+        self.tiempo_input.valueChanged.connect(self.actualizar_resumen)
+        form_layout.addRow("Tiempo Límite:", self.tiempo_input)
 
-        # Puntaje mínimo
-        puntaje_layout = QHBoxLayout()
-        self.puntaje_input = QDoubleSpinBox()
-        self.puntaje_input.setMinimum(0)
-        self.puntaje_input.setMaximum(100)
+        self.puntaje_input = QSpinBox()
+        self.puntaje_input.setRange(1, 100)
         self.puntaje_input.setValue(70)
         self.puntaje_input.setSuffix("%")
-        puntaje_layout.addWidget(self.puntaje_input)
-        puntaje_layout.addStretch()
-        form_layout.addRow("Puntaje mínimo:", puntaje_layout)
+        self.puntaje_input.valueChanged.connect(self.actualizar_resumen)
+        form_layout.addRow("Puntaje Mínimo:", self.puntaje_input)
 
-        # Máximo de intentos
         self.intentos_input = QSpinBox()
-        self.intentos_input.setMinimum(1)
-        self.intentos_input.setMaximum(10)
-        self.intentos_input.setValue(3)
-        form_layout.addRow("Máx. intentos:", self.intentos_input)
+        self.intentos_input.setRange(1, 10)
+        self.intentos_input.setValue(2)
+        self.intentos_input.valueChanged.connect(self.actualizar_resumen)
+        form_layout.addRow("Intentos Máximos:", self.intentos_input)
 
-        # Estado
         self.estado_combo = QComboBox()
-        self.estado_combo.addItems(["activo", "inactivo"])
+        self.estado_combo.addItems(["activo", "inactivo", "borrador"])
         form_layout.addRow("Estado:", self.estado_combo)
 
         layout.addLayout(form_layout)
 
-        # Resumen
-        summary_group = QGroupBox("📊 Resumen")
-        summary_layout = QVBoxLayout(summary_group)
-
-        self.summary_label = QLabel("Completa los campos para ver el resumen")
-        self.summary_label.setStyleSheet("color: #7f8c8d; padding: 10px;")
-        self.summary_label.setWordWrap(True)
-        summary_layout.addWidget(self.summary_label)
-
-        layout.addWidget(summary_group)
-
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Guardar Configuración")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
-
-        for btn in [
-            buttons.button(QDialogButtonBox.Ok),
-            buttons.button(QDialogButtonBox.Cancel),
-        ]:
-            btn.setStyleSheet(
-                """
-                QPushButton {
-                    padding: 12px 30px;
-                    border-radius: 25px;
-                    font-weight: bold;
-                    font-size: 14px;
-                    min-width: 150px;
-                }
-            """
-            )
-
-        buttons.button(QDialogButtonBox.Ok).setStyleSheet(
-            """
-            background-color: #3498db;
-            color: white;
-        """
+        # --- RESUMEN ---
+        self.resumen_card = QFrame()
+        self.resumen_card.setStyleSheet(
+            StyleHelper.card_style() + "background-color: #f8fafc;"
         )
-        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(
-            """
-            background-color: #e74c3c;
-            color: white;
-        """
-        )
+        resumen_layout = QVBoxLayout(self.resumen_card)
+        self.resumen_label = QLabel()
+        self.resumen_label.setWordWrap(True)
+        self.resumen_label.setStyleSheet("color: #64748b; font-size: 12px;")
+        resumen_layout.addWidget(self.resumen_label)
+        layout.addWidget(self.resumen_card)
 
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
+        # --- BOTONES ---
+        layout.addStretch()
+        buttons = QHBoxLayout()
+        buttons.setSpacing(15)
 
-        layout.addWidget(buttons)
+        cancel_btn = QPushButton("Cancelar")
+        cancel_btn.setMinimumHeight(45)
+        cancel_btn.setStyleSheet(StyleHelper.button_danger())
+        cancel_btn.clicked.connect(self.reject)
+
+        save_btn = QPushButton("Guardar Configuración")
+        save_btn.setMinimumHeight(45)
+        save_btn.setStyleSheet(StyleHelper.button_primary())
+        save_btn.clicked.connect(self.accept)
+
+        buttons.addStretch()
+        buttons.addWidget(cancel_btn)
+        buttons.addWidget(save_btn)
+        layout.addLayout(buttons)
 
         # Conectar señales para actualizar resumen
-        self.tiempo_input.valueChanged.connect(self.actualizar_resumen)
-        self.puntaje_input.valueChanged.connect(self.actualizar_resumen)
-        self.intentos_input.valueChanged.connect(self.actualizar_resumen)
-        self.num_preguntas_input.valueChanged.connect(self.actualizar_resumen)
+        # self.tiempo_input.valueChanged.connect(self.actualizar_resumen) # Already connected above
+        # self.puntaje_input.valueChanged.connect(self.actualizar_resumen) # Already connected above
+        # self.intentos_input.valueChanged.connect(self.actualizar_resumen) # Already connected above
+        # self.num_preguntas_input.valueChanged.connect(self.actualizar_resumen) # Already connected above
 
         self.actualizar_resumen()
 
     def actualizar_resumen(self):
         """Actualizar el resumen de la configuración"""
+        titulo = self.titulo_input.text()
         tiempo = self.tiempo_input.value()
         puntaje = self.puntaje_input.value()
         intentos = self.intentos_input.value()
         preguntas = self.num_preguntas_input.value()
 
-        self.summary_label.setText(
-            f"📝 Configuración:\n\n"
-            f"• {preguntas} preguntas\n"
-            f"• {tiempo} minutos de duración\n"
-            f"• {puntaje}% mínimo para aprobar\n"
-            f"• {intentos} intentos máximos"
+        if not titulo:
+            titulo_display = "Evaluación sin título"
+        else:
+            titulo_display = f"**{titulo}**"
+
+        self.resumen_label.setText(
+            f"📝 **Resumen de la Configuración:**\n\n"
+            f"• Título: {titulo_display}\n"
+            f"• Número de preguntas: {preguntas}\n"
+            f"• Tiempo límite: {tiempo} minutos\n"
+            f"• Puntaje mínimo para aprobar: {puntaje}%\n"
+            f"• Intentos máximos permitidos: {intentos}"
         )
 
     def load_config_data(self):
         """Cargar datos de configuración existente"""
+
+        def safe_int(value, default=0):
+            """Convierte cualquier valor numérico (int, float o string '80.00') a int."""
+            try:
+                return int(float(value))
+            except (ValueError, TypeError):
+                return default
+
         self.titulo_input.setText(self.config_data.get("titulo", ""))
-        self.descripcion_input.setPlainText(self.config_data.get("descripcion", ""))
-        self.num_preguntas_input.setValue(self.config_data.get("numero_preguntas", 10))
-        self.tiempo_input.setValue(self.config_data.get("tiempo_limite", 30))
-        self.puntaje_input.setValue(float(self.config_data.get("puntaje_minimo", 70)))
-        self.intentos_input.setValue(self.config_data.get("max_intentos", 3))
+        self.num_preguntas_input.setValue(
+            safe_int(self.config_data.get("numero_preguntas"), 10)
+        )
+        self.tiempo_input.setValue(safe_int(self.config_data.get("tiempo_limite"), 30))
+        self.puntaje_input.setValue(
+            safe_int(self.config_data.get("puntaje_minimo"), 70)
+        )
+        self.intentos_input.setValue(safe_int(self.config_data.get("max_intentos"), 3))
 
         index = self.estado_combo.findText(self.config_data.get("estado", "activo"))
         if index >= 0:
@@ -253,646 +223,11 @@ class EvaluationConfigDialog(QDialog):
 
         return {
             "titulo": titulo,  # ¡IMPORTANTE! Este campo debe enviarse
-            "descripcion": self.descripcion_input.toPlainText(),
             "numero_preguntas": self.num_preguntas_input.value(),
             "tiempo_limite": self.tiempo_input.value(),
             "puntaje_minimo": self.puntaje_input.value(),
             "max_intentos": self.intentos_input.value(),
             "estado": self.estado_combo.currentText(),
-        }
-
-    def get_data(self):
-        """Obtener datos del formulario"""
-        return {
-            "titulo": self.titulo_input.text(),
-            "descripcion": self.descripcion_input.toPlainText(),
-            "numero_preguntas": self.num_preguntas_input.value(),
-            "tiempo_limite": self.tiempo_input.value(),
-            "puntaje_minimo": self.puntaje_input.value(),
-            "max_intentos": self.intentos_input.value(),
-            "estado": self.estado_combo.currentText(),
-        }
-
-
-class OpcionEvaluacionDialog(QDialog):
-    """Diálogo mejorado para agregar opciones según el tipo de pregunta - MISMO ESTILO QUE EJERCICIOS"""
-
-    def __init__(self, tipo, parent=None):
-        super().__init__(parent)
-        self.tipo = tipo
-        self.setWindowTitle("Agregar Opción")
-
-        # Tamaño según tipo
-        if tipo == "arrastrar_soltar":
-            self.setFixedSize(450, 320)
-            self.setWindowTitle("➕ Agregar Par (Término → Definición)")
-        elif tipo == "seleccion_multiple":
-            self.setFixedSize(400, 220)
-        else:
-            self.setFixedSize(400, 150)
-
-        self.setup_ui()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(25, 25, 25, 25)
-
-        if self.tipo == "arrastrar_soltar":
-            # Instrucciones
-            instrucciones = QLabel(
-                "📌 **CREAR PAR PARA ARRASTRAR Y SOLTAR**\n"
-                "El usuario deberá relacionar el término con su definición."
-            )
-            instrucciones.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #e3f2fd;
-                    color: #1976d2;
-                    padding: 12px;
-                    border-radius: 6px;
-                    font-size: 12px;
-                    font-weight: bold;
-                }
-            """
-            )
-            instrucciones.setWordWrap(True)
-            layout.addWidget(instrucciones)
-
-            # Término
-            termino_label = QLabel("📝 **TÉRMINO / CONCEPTO:**")
-            termino_label.setStyleSheet(
-                "font-weight: bold; color: #e67e22; font-size: 12px;"
-            )
-            layout.addWidget(termino_label)
-
-            self.texto_input = QLineEdit()
-            self.texto_input.setPlaceholderText("Ej: HTML, CSS, JavaScript...")
-            self.texto_input.setStyleSheet("border: 2px solid #e67e22;")
-            layout.addWidget(self.texto_input)
-
-            layout.addSpacing(10)
-
-            # Definición
-            definicion_label = QLabel("📚 **DEFINICIÓN / DESCRIPCIÓN:**")
-            definicion_label.setStyleSheet(
-                "font-weight: bold; color: #3498db; font-size: 12px;"
-            )
-            layout.addWidget(definicion_label)
-
-            self.pareja_input = QLineEdit()
-            self.pareja_input.setPlaceholderText("Ej: HyperText Markup Language...")
-            self.pareja_input.setStyleSheet("border: 2px solid #3498db;")
-            layout.addWidget(self.pareja_input)
-
-            # Ejemplo visual
-            ejemplo_frame = QFrame()
-            ejemplo_frame.setStyleSheet(
-                """
-                QFrame {
-                    background-color: #f8f9fa;
-                    border: 2px dashed #3498db;
-                    border-radius: 8px;
-                    padding: 15px;
-                    margin-top: 10px;
-                }
-            """
-            )
-            ejemplo_layout = QHBoxLayout(ejemplo_frame)
-
-            ejemplo_termino = QLabel("HTML")
-            ejemplo_termino.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #e67e22;
-                    color: white;
-                    padding: 5px 15px;
-                    border-radius: 5px;
-                    font-weight: bold;
-                }
-            """
-            )
-            ejemplo_layout.addWidget(ejemplo_termino)
-
-            ejemplo_flecha = QLabel("  →  ")
-            ejemplo_flecha.setStyleSheet(
-                "font-size: 16px; font-weight: bold; color: #2c3e50;"
-            )
-            ejemplo_layout.addWidget(ejemplo_flecha)
-
-            ejemplo_def = QLabel("HyperText Markup Language")
-            ejemplo_def.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #3498db;
-                    color: white;
-                    padding: 5px 15px;
-                    border-radius: 5px;
-                    font-weight: bold;
-                }
-            """
-            )
-            ejemplo_layout.addWidget(ejemplo_def)
-            ejemplo_layout.addStretch()
-
-            layout.addWidget(ejemplo_frame)
-
-        elif self.tipo == "seleccion_multiple":
-            # Instrucciones
-            instrucciones = QLabel("📝 Agrega una opción para la pregunta")
-            instrucciones.setStyleSheet(
-                "color: #2c3e50; font-style: italic; margin-bottom: 5px;"
-            )
-            layout.addWidget(instrucciones)
-
-            # Texto de la opción
-            layout.addWidget(QLabel("Texto de la opción:"))
-            self.texto_input = QLineEdit()
-            self.texto_input.setPlaceholderText("Escribe la opción...")
-            layout.addWidget(self.texto_input)
-
-            # ¿Es correcta?
-            self.correcta_check = QCheckBox("✓ Esta es la respuesta correcta")
-            self.correcta_check.setStyleSheet(
-                "color: #27ae60; font-weight: bold; margin-top: 10px;"
-            )
-            layout.addWidget(self.correcta_check)
-
-        elif self.tipo == "verdadero_falso":
-            # Para V/F, no se usa este diálogo, pero por si acaso
-            layout.addWidget(QLabel("Esta opción no aplica para Verdadero/Falso"))
-            self.texto_input = QLineEdit()
-            self.texto_input.hide()
-
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def get_data(self):
-        """Obtener los datos ingresados"""
-        data = {
-            "texto": self.texto_input.text() if hasattr(self, "texto_input") else ""
-        }
-
-        if self.tipo == "arrastrar_soltar":
-            data["pareja"] = self.pareja_input.text()
-            data["es_correcta"] = True  # En arrastrar, todos los pares son correctos
-        elif self.tipo == "seleccion_multiple":
-            data["es_correcta"] = (
-                self.correcta_check.isChecked()
-                if hasattr(self, "correcta_check")
-                else False
-            )
-        else:
-            data["es_correcta"] = False
-
-        return data
-
-
-class QuestionDialog(QDialog):
-    """Diálogo para crear/editar preguntas - MISMO ESTILO QUE EJERCICIOS"""
-
-    def __init__(self, api_client, evaluacion_id, question_data=None, parent=None):
-        super().__init__(parent)
-        self.api_client = api_client
-        self.evaluacion_id = evaluacion_id
-        self.question_data = question_data
-        self.opciones = []
-        self.setWindowTitle("Editar Pregunta" if question_data else "Nueva Pregunta")
-        self.setMinimumSize(650, 600)
-        self.setup_ui()
-
-        if question_data:
-            self.load_question_data()
-
-    def setup_ui(self):
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #f8f9fa;
-            }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-                font-size: 13px;
-                background-color: white;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
-                border-color: #3498db;
-            }
-            QLabel {
-                font-size: 13px;
-                color: #2c3e50;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #e0e0e0;
-                border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """
-        )
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(25, 25, 25, 25)
-
-        # Título
-        title = QLabel(
-            "❓ " + ("Editar Pregunta" if self.question_data else "Nueva Pregunta")
-        )
-        title.setFont(QFont("Segoe UI", 18, QFont.Bold))
-        title.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
-        layout.addWidget(title)
-
-        # Tipo y puntos
-        tipo_puntos_layout = QHBoxLayout()
-
-        tipo_layout = QHBoxLayout()
-        tipo_layout.addWidget(QLabel("Tipo:"))
-        self.tipo_combo = QComboBox()
-        self.tipo_combo.addItems(
-            ["seleccion_multiple", "verdadero_falso", "arrastrar_soltar"]
-        )
-        self.tipo_combo.currentTextChanged.connect(self.cambiar_tipo)
-        self.tipo_combo.setMinimumWidth(150)
-        tipo_layout.addWidget(self.tipo_combo)
-
-        tipo_puntos_layout.addLayout(tipo_layout)
-
-        tipo_puntos_layout.addStretch()
-
-        puntos_layout = QHBoxLayout()
-        puntos_layout.addWidget(QLabel("Puntos:"))
-        self.puntos_input = QDoubleSpinBox()
-        self.puntos_input.setMinimum(0.5)
-        self.puntos_input.setMaximum(100)
-        self.puntos_input.setValue(10)
-        self.puntos_input.setSingleStep(0.5)
-        self.puntos_input.setFixedWidth(80)
-        puntos_layout.addWidget(self.puntos_input)
-
-        tipo_puntos_layout.addLayout(puntos_layout)
-
-        layout.addLayout(tipo_puntos_layout)
-
-        # Pregunta
-        pregunta_label = QLabel("Pregunta:")
-        pregunta_label.setStyleSheet("font-weight: bold; margin-top: 5px;")
-        layout.addWidget(pregunta_label)
-
-        self.pregunta_input = QTextEdit()
-        self.pregunta_input.setPlaceholderText("Escribe la pregunta...")
-        self.pregunta_input.setMaximumHeight(80)
-        layout.addWidget(self.pregunta_input)
-
-        # Opciones
-        self.opciones_group = QGroupBox("Opciones de Respuesta")
-        opciones_layout = QVBoxLayout()
-
-        # Instrucciones según tipo (se actualizará dinámicamente)
-        self.instrucciones_label = QLabel()
-        self.instrucciones_label.setWordWrap(True)
-        self.instrucciones_label.setStyleSheet(
-            """
-            QLabel {
-                background-color: #e8f4fd;
-                color: #1976d2;
-                padding: 10px;
-                border-radius: 4px;
-                font-size: 12px;
-                margin-bottom: 10px;
-            }
-        """
-        )
-        opciones_layout.addWidget(self.instrucciones_label)
-
-        # Toolbar de opciones
-        toolbar = QHBoxLayout()
-
-        self.add_opcion_btn = QPushButton("➕ Agregar Opción")
-        self.add_opcion_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                padding: 5px 12px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-        """
-        )
-        self.add_opcion_btn.clicked.connect(self.agregar_opcion)
-        toolbar.addWidget(self.add_opcion_btn)
-
-        self.remove_opcion_btn = QPushButton("🗑️ Eliminar")
-        self.remove_opcion_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                padding: 5px 12px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-        """
-        )
-        self.remove_opcion_btn.clicked.connect(self.eliminar_opcion)
-        toolbar.addWidget(self.remove_opcion_btn)
-
-        toolbar.addStretch()
-        opciones_layout.addLayout(toolbar)
-
-        # Lista de opciones
-        self.opciones_list = QListWidget()
-        self.opciones_list.setMaximumHeight(180)
-        self.opciones_list.setStyleSheet(
-            """
-            QListWidget {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-            QListWidget::item:selected {
-                background-color: #e3f2fd;
-            }
-        """
-        )
-        opciones_layout.addWidget(self.opciones_list)
-
-        self.opciones_group.setLayout(opciones_layout)
-        layout.addWidget(self.opciones_group)
-
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Guardar Pregunta")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
-
-        buttons.button(QDialogButtonBox.Ok).setStyleSheet(
-            """
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                padding: 8px 25px;
-                border-radius: 20px;
-                font-weight: bold;
-                font-size: 13px;
-                min-width: 120px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """
-        )
-        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(
-            """
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                padding: 8px 25px;
-                border-radius: 20px;
-                font-weight: bold;
-                font-size: 13px;
-                min-width: 100px;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """
-        )
-
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-
-        layout.addWidget(buttons)
-
-        self.cambiar_tipo(self.tipo_combo.currentText())
-
-    def cambiar_tipo(self, tipo):
-        """Cambiar interfaz según tipo de pregunta - MISMO ESTILO QUE EJERCICIOS"""
-        # Actualizar instrucciones
-        if tipo == "arrastrar_soltar":
-            self.instrucciones_label.setText(
-                "📌 **ARRASTRAR Y SOLTAR:**\n"
-                "• Agrega pares de (Término → Definición)\n"
-                "• Cada término debe tener su definición correspondiente\n"
-                "• El usuario deberá relacionar cada término con su definición"
-            )
-            self.add_opcion_btn.setEnabled(True)
-            self.remove_opcion_btn.setEnabled(True)
-            self.opciones_list.clear()
-
-        elif tipo == "verdadero_falso":
-            self.instrucciones_label.setText(
-                "📌 **VERDADERO / FALSO:**\n"
-                "• Las opciones se generan automáticamente\n"
-                "• Selecciona cuál es la respuesta correcta"
-            )
-            self.add_opcion_btn.setEnabled(False)
-            self.remove_opcion_btn.setEnabled(False)
-            self.opciones_list.clear()
-
-            # Agregar opciones por defecto
-            item1 = QListWidgetItem("✓ **Verdadero**")
-            item1.setData(
-                Qt.UserRole, {"texto": "Verdadero", "es_correcta": True, "orden": 1}
-            )
-            item1.setForeground(QColor("#27ae60"))
-            item1.setFont(QFont("Segoe UI", 10, QFont.Bold))
-            self.opciones_list.addItem(item1)
-
-            item2 = QListWidgetItem("✗ **Falso**")
-            item2.setData(
-                Qt.UserRole, {"texto": "Falso", "es_correcta": False, "orden": 2}
-            )
-            item2.setForeground(QColor("#e74c3c"))
-            item2.setFont(QFont("Segoe UI", 10, QFont.Bold))
-            self.opciones_list.addItem(item2)
-
-        else:  # seleccion_multiple
-            self.instrucciones_label.setText(
-                "📌 **SELECCIÓN MÚLTIPLE:**\n"
-                "• Agrega todas las opciones posibles\n"
-                "• Marca cuál(es) es la respuesta correcta usando el checkbox"
-            )
-            self.add_opcion_btn.setEnabled(True)
-            self.remove_opcion_btn.setEnabled(True)
-
-    def agregar_opcion(self):
-        """Agregar nueva opción - MISMO ESTILO QUE EJERCICIOS"""
-        dialog = OpcionEvaluacionDialog(self.tipo_combo.currentText(), self)
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-
-            if self.tipo_combo.currentText() == "arrastrar_soltar":
-                # Para arrastrar y soltar, mostrar como par con formato especial
-                item_text = f"📌 **{data['texto']}**  →  📚 **{data['pareja']}**"
-                item = QListWidgetItem(item_text)
-                item.setForeground(QColor("#e67e22"))
-                item.setFont(QFont("Segoe UI", 10, QFont.Bold))
-
-                # Guardar datos
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "texto": data["texto"],
-                        "pareja": data["pareja"],
-                        "es_correcta": True,
-                        "orden": self.opciones_list.count() + 1,
-                    },
-                )
-
-            elif self.tipo_combo.currentText() == "seleccion_multiple":
-                item_text = data["texto"]
-                item = QListWidgetItem(item_text)
-
-                if data.get("es_correcta"):
-                    item.setForeground(QColor("#27ae60"))
-                    item.setIcon(
-                        self.style().standardIcon(self.style().SP_DialogApplyButton)
-                    )
-                    item.setText(f"✓ {item_text}")
-
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "texto": data["texto"],
-                        "es_correcta": data["es_correcta"],
-                        "orden": self.opciones_list.count() + 1,
-                    },
-                )
-
-            self.opciones_list.addItem(item)
-
-    def eliminar_opcion(self):
-        """Eliminar opción seleccionada"""
-        current_row = self.opciones_list.currentRow()
-        if current_row >= 0:
-            self.opciones_list.takeItem(current_row)
-
-    def load_question_data(self):
-        """Cargar datos de pregunta existente"""
-        self.pregunta_input.setPlainText(self.question_data.get("pregunta", ""))
-        self.puntos_input.setValue(float(self.question_data.get("puntos", 10)))
-
-        tipo = self.question_data.get("tipo", "seleccion_multiple")
-        index = self.tipo_combo.findText(tipo)
-        if index >= 0:
-            self.tipo_combo.setCurrentIndex(index)
-
-        # Cargar opciones
-        opciones = self.question_data.get("opciones", [])
-        self.opciones_list.clear()
-
-        for opcion in opciones:
-            if tipo == "arrastrar_soltar":
-                item_text = f"📌 **{opcion['texto']}**  →  📚 **{opcion.get('pareja_arrastre', '')}**"
-                item = QListWidgetItem(item_text)
-                item.setForeground(QColor("#e67e22"))
-                item.setFont(QFont("Segoe UI", 10, QFont.Bold))
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "texto": opcion["texto"],
-                        "pareja": opcion.get("pareja_arrastre"),
-                        "es_correcta": True,
-                        "orden": opcion.get("orden", 1),
-                    },
-                )
-
-            elif tipo == "verdadero_falso":
-                item_text = (
-                    "✓ **Verdadero**" if opcion.get("es_correcta") else "✗ **Falso**"
-                )
-                item = QListWidgetItem(item_text)
-                if opcion.get("es_correcta"):
-                    item.setForeground(QColor("#27ae60"))
-                else:
-                    item.setForeground(QColor("#e74c3c"))
-                item.setFont(QFont("Segoe UI", 10, QFont.Bold))
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "texto": opcion["texto"],
-                        "es_correcta": opcion.get("es_correcta", False),
-                        "orden": opcion.get("orden", 1),
-                    },
-                )
-
-            else:  # seleccion_multiple
-                item_text = opcion["texto"]
-                item = QListWidgetItem(item_text)
-                if opcion.get("es_correcta"):
-                    item.setForeground(QColor("#27ae60"))
-                    item.setIcon(
-                        self.style().standardIcon(self.style().SP_DialogApplyButton)
-                    )
-                    item.setText(f"✓ {item_text}")
-                item.setData(
-                    Qt.UserRole,
-                    {
-                        "texto": opcion["texto"],
-                        "es_correcta": opcion.get("es_correcta", False),
-                        "orden": opcion.get("orden", 1),
-                    },
-                )
-
-            self.opciones_list.addItem(item)
-
-    def get_data(self):
-        """Obtener datos del formulario"""
-        opciones = []
-        for i in range(self.opciones_list.count()):
-            item = self.opciones_list.item(i)
-            data = item.data(Qt.UserRole)
-            if data:
-                data["orden"] = i + 1
-
-                # Adaptar según tipo
-                if self.tipo_combo.currentText() == "arrastrar_soltar":
-                    opciones.append(
-                        {
-                            "texto": data["texto"],
-                            "pareja_arrastre": data.get("pareja", ""),
-                            "es_correcta": True,
-                            "orden": i + 1,
-                        }
-                    )
-                else:
-                    opciones.append(
-                        {
-                            "texto": data["texto"],
-                            "es_correcta": data.get("es_correcta", False),
-                            "orden": i + 1,
-                        }
-                    )
-
-        return {
-            "pregunta": self.pregunta_input.toPlainText(),
-            "tipo": self.tipo_combo.currentText(),
-            "puntos": self.puntos_input.value(),
-            "opciones": opciones,
         }
 
 
@@ -908,6 +243,10 @@ class EvaluationsView(QWidget):
         self.preguntas = []
         self.setup_ui()
         self.load_modulos()
+
+        # Conectar señales para actualización en tiempo real
+        self.api_client.data_changed.connect(self._on_data_changed)
+        self.api_client.evaluaciones_changed.connect(self._on_evaluaciones_changed)
 
     def setup_ui(self):
         self.setStyleSheet(
@@ -960,7 +299,7 @@ class EvaluationsView(QWidget):
         header_layout = QHBoxLayout()
 
         title = QLabel("📝 Evaluaciones")
-        title.setFont(QFont("Segoe UI", 22, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
         title.setStyleSheet("color: #2c3e50;")
 
         header_layout.addWidget(title)
@@ -1000,104 +339,128 @@ class EvaluationsView(QWidget):
 
         main_layout.addLayout(header_layout)
 
-        # Splitter para dividir configuración y preguntas
-        splitter = QSplitter(Qt.Vertical)
+        # Contenedor apilado (StackedWidget) para Placeholder / Contenido Real
+        self.stack = QStackedWidget()
 
-        # Panel de configuración
-        config_widget = QWidget()
-        config_layout = QVBoxLayout(config_widget)
-        config_layout.setContentsMargins(0, 0, 0, 0)
+        # --- PÁGINA 0: PLACEHOLDER PRINCIPAL ---
+        self.main_placeholder = self._create_main_placeholder()
+        self.stack.addWidget(self.main_placeholder)
 
-        # Config header
-        config_header = QHBoxLayout()
-        config_header.addWidget(QLabel("⚙️ Configuración"))
-        config_header.addStretch()
+        # --- PÁGINA 1: CONTENIDO REAL ---
+        self.content_page = QWidget()
+        content_layout = QVBoxLayout(self.content_page)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
 
-        self.config_btn = QPushButton("⚙️ Configurar Evaluación")
-        self.config_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """
+        # Toolbar compacta para la evaluación
+        self.eval_toolbar = QFrame()
+        self.eval_toolbar.setStyleSheet(
+            "background-color: white; border-radius: 8px; border: 1px solid #e2e8f0; padding: 5px;"
         )
+        toolbar_layout = QHBoxLayout(self.eval_toolbar)
+
+        self.eval_title_label = QLabel("Título de la Evaluación")
+        self.eval_title_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.eval_title_label.setStyleSheet("color: #1e293b; border: none;")
+        toolbar_layout.addWidget(self.eval_title_label)
+
+        self.eval_stats_label = QLabel("10 preguntas | 30 min")
+        self.eval_stats_label.setStyleSheet(
+            "color: #64748b; font-size: 13px; border: none;"
+        )
+        toolbar_layout.addWidget(self.eval_stats_label)
+
+        toolbar_layout.addStretch()
+
+        self.config_btn = QPushButton("⚙️ Configurar")
+        self.config_btn.setMinimumHeight(38)
+        self.config_btn.setStyleSheet(StyleHelper.button_secondary())
         self.config_btn.clicked.connect(self.configurar_evaluacion)
-        config_header.addWidget(self.config_btn)
-
-        config_layout.addLayout(config_header)
-
-        # Info de configuración
-        self.config_frame = QFrame()
-        self.config_frame_layout = QVBoxLayout(self.config_frame)
-
-        self.config_info = QLabel("No hay configuración de evaluación para este módulo")
-        self.config_info.setObjectName("configLabel")
-        self.config_info.setAlignment(Qt.AlignCenter)
-        self.config_info.setStyleSheet("color: #7f8c8d; padding: 20px;")
-        self.config_frame_layout.addWidget(self.config_info)
-
-        config_layout.addWidget(self.config_frame)
-
-        splitter.addWidget(config_widget)
-
-        # Panel de preguntas
-        questions_widget = QWidget()
-        questions_layout = QVBoxLayout(questions_widget)
-        questions_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Questions header
-        questions_header = QHBoxLayout()
-        questions_header.addWidget(QLabel("❓ Preguntas"))
-        questions_header.addStretch()
+        toolbar_layout.addWidget(self.config_btn)
 
         self.new_question_btn = QPushButton("➕ Nueva Pregunta")
-        self.new_question_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #e67e22;
-                color: white;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #d35400;
-            }
-        """
-        )
+        self.new_question_btn.setMinimumHeight(38)
+        self.new_question_btn.setStyleSheet(StyleHelper.button_primary())
         self.new_question_btn.clicked.connect(self.nueva_pregunta)
-        self.new_question_btn.setEnabled(False)
-        questions_header.addWidget(self.new_question_btn)
+        toolbar_layout.addWidget(self.new_question_btn)
 
-        questions_layout.addLayout(questions_header)
+        content_layout.addWidget(self.eval_toolbar)
 
-        # Tabla de preguntas
+        # Placeholder interno para cuando NO hay evaluación configurada
+        self.no_eval_placeholder = self._create_no_eval_placeholder()
+        content_layout.addWidget(self.no_eval_placeholder)
+
+        # Tabla de preguntas (ahora ocupa todo el espacio)
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(
             ["ID", "Pregunta", "Tipo", "Puntos", "Acciones"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
         self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
 
-        questions_layout.addWidget(self.table)
+        content_layout.addWidget(self.table)
 
-        splitter.addWidget(questions_widget)
-
-        # Set initial sizes (30% config, 70% questions)
-        splitter.setSizes([200, 500])
-
-        main_layout.addWidget(splitter)
+        self.stack.addWidget(self.content_page)
+        main_layout.addWidget(self.stack)
 
         self.setLayout(main_layout)
+
+    def _create_no_eval_placeholder(self) -> QFrame:
+        """Crea el placeholder que se muestra cuando un módulo no tiene evaluación"""
+        frame = QFrame()
+        frame.setStyleSheet(
+            "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
+        )
+        layout = QVBoxLayout(frame)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(15)
+
+        info = QLabel("No hay una evaluación configurada para este módulo")
+        info.setFont(QFont("Segoe UI", 12))
+        info.setStyleSheet("color: #64748b; border: none;")
+        layout.addWidget(info)
+
+        create_btn = QPushButton("✨ Crear Nueva Evaluación")
+        create_btn.setMinimumHeight(45)
+        create_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        create_btn.setStyleSheet(StyleHelper.button_primary() + "padding: 0 25px;")
+        create_btn.clicked.connect(self.configurar_evaluacion)
+        layout.addWidget(create_btn)
+
+        return frame
+
+    def _create_main_placeholder(self) -> QFrame:
+        """Crea la vista de placeholder principal"""
+        frame = QFrame()
+        frame.setStyleSheet(
+            "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
+        )
+
+        layout = QVBoxLayout(frame)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
+
+        icon = QLabel("📝")
+        icon.setFont(QFont("Segoe UI", 64))
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+
+        text = QLabel("Seleccione un módulo para gestionar su evaluación")
+        text.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        text.setStyleSheet("color: #64748b;")
+        text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(text)
+
+        subtext = QLabel("Use el selector superior para comenzar")
+        subtext.setStyleSheet("color: #94a3b8; font-size: 14px;")
+        subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtext)
+
+        return frame
 
     def load_modulos(self):
         """Cargar lista de módulos"""
@@ -1118,7 +481,7 @@ class EvaluationsView(QWidget):
             for modulo in self.modulos:
                 self.modulo_combo.addItem(f"{modulo.get('titulo')}", modulo.get("id"))
 
-            self.mostrar_sin_evaluacion()
+            self.stack.setCurrentIndex(0)
             self.new_question_btn.setEnabled(False)
         else:
             QMessageBox.warning(
@@ -1129,9 +492,11 @@ class EvaluationsView(QWidget):
         """Cambiar módulo seleccionado"""
         if index <= 0:
             self.modulo_actual = None
-            self.mostrar_sin_evaluacion()
+            self.stack.setCurrentIndex(0)
             self.new_question_btn.setEnabled(False)
             return
+
+        self.stack.setCurrentIndex(1)
 
         modulo_id = self.modulo_combo.currentData()
         self.modulo_actual = next(
@@ -1141,10 +506,10 @@ class EvaluationsView(QWidget):
         if self.modulo_actual:
             self.load_evaluacion(modulo_id)
 
-    def load_evaluacion(self, modulo_id):
+    def load_evaluacion(self, modulo_id, force_refresh=False):
         """Cargar evaluación del módulo"""
         logger.debug(f"Cargando evaluación del módulo {modulo_id}...")
-        result = self.api_client.get_evaluacion(modulo_id)
+        result = self.api_client.get_evaluacion(modulo_id, force_refresh=force_refresh)
 
         if result["success"]:
             data = result.get("data", {})
@@ -1178,68 +543,29 @@ class EvaluationsView(QWidget):
         self.actualizar_tabla(self.preguntas)
 
     def mostrar_configuracion(self, config):
-        """Mostrar configuración en el panel"""
-        # Limpiar frame
-        self.clear_layout(self.config_frame_layout)
+        """Mostrar configuración compacta en la toolbar y habilitar tabla"""
+        self.eval_toolbar.show()
+        self.no_eval_placeholder.hide()
+        self.table.show()
 
-        # Crear grid de información
-        grid_layout = QGridLayout()
-        grid_layout.setVerticalSpacing(10)
-        grid_layout.setHorizontalSpacing(20)
+        titulo = config.get("titulo", "Evaluación")
+        preguntas_count = config.get("numero_preguntas", 0)
+        tiempo = config.get("tiempo_limite", 0)
+        puntaje = config.get("puntaje_minimo", 0)
 
-        row = 0
-        grid_layout.addWidget(QLabel("📌 Título:"), row, 0)
-        titulo_label = QLabel(config.get("titulo", "N/A"))
-        titulo_label.setStyleSheet("font-weight: bold;")
-        titulo_label.setWordWrap(True)
-        grid_layout.addWidget(titulo_label, row, 1)
-
-        row += 1
-        grid_layout.addWidget(QLabel("📝 Descripción:"), row, 0)
-        desc_label = QLabel(config.get("descripcion", "N/A"))
-        desc_label.setWordWrap(True)
-        grid_layout.addWidget(desc_label, row, 1)
-
-        row += 1
-        grid_layout.addWidget(QLabel("🔢 Preguntas:"), row, 0)
-        grid_layout.addWidget(QLabel(str(config.get("numero_preguntas", 0))), row, 1)
-
-        row += 1
-        grid_layout.addWidget(QLabel("⏱️ Tiempo:"), row, 0)
-        grid_layout.addWidget(
-            QLabel(f"{config.get('tiempo_limite', 0)} minutos"), row, 1
+        self.eval_title_label.setText(f"📝 {titulo}")
+        self.eval_stats_label.setText(
+            f"{preguntas_count} Preguntas | {tiempo} min | {puntaje}% p/aprob."
         )
 
-        row += 1
-        grid_layout.addWidget(QLabel("🎯 Puntaje mínimo:"), row, 0)
-        grid_layout.addWidget(QLabel(f"{config.get('puntaje_minimo', 0)}%"), row, 1)
-
-        row += 1
-        grid_layout.addWidget(QLabel("🔄 Intentos máximos:"), row, 0)
-        grid_layout.addWidget(QLabel(str(config.get("max_intentos", 0))), row, 1)
-
-        row += 1
-        grid_layout.addWidget(QLabel("📊 Estado:"), row, 0)
-        estado_label = QLabel(config.get("estado", "inactivo"))
-        if config.get("estado") == "activo":
-            estado_label.setStyleSheet("color: #27ae60; font-weight: bold;")
-        else:
-            estado_label.setStyleSheet("color: #e74c3c; font-weight: bold;")
-        grid_layout.addWidget(estado_label, row, 1)
-
-        grid_layout.setColumnStretch(1, 1)
-        self.config_frame_layout.addLayout(grid_layout)
-        self.config_frame_layout.addStretch()
+        self.new_question_btn.setEnabled(True)
 
     def mostrar_sin_evaluacion(self):
-        """Mostrar mensaje de sin configuración"""
-        self.clear_layout(self.config_frame_layout)
-        self.config_info = QLabel("No hay configuración de evaluación para este módulo")
-        self.config_info.setObjectName("configLabel")
-        self.config_info.setAlignment(Qt.AlignCenter)
-        self.config_info.setStyleSheet("color: #7f8c8d; padding: 20px;")
-        self.config_frame_layout.addWidget(self.config_info)
-        self.config_frame_layout.addStretch()
+        """Mostrar placeholder amigable de creación"""
+        self.eval_toolbar.hide()
+        self.no_eval_placeholder.show()
+        self.table.hide()
+        self.new_question_btn.setEnabled(False)
 
     def actualizar_tabla(self, preguntas):
         """Actualizar tabla de preguntas"""
@@ -1341,7 +667,7 @@ class EvaluationsView(QWidget):
             self.api_client, self.modulo_actual.get("id"), self.evaluacion_actual, self
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
             result = self.api_client.update_evaluacion_config(
@@ -1349,10 +675,7 @@ class EvaluationsView(QWidget):
             )
 
             if result["success"]:
-                QMessageBox.information(
-                    self, "Éxito", "Configuración guardada correctamente"
-                )
-                self.load_evaluacion(self.modulo_actual.get("id"))
+                self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
@@ -1362,11 +685,16 @@ class EvaluationsView(QWidget):
             QMessageBox.warning(self, "Error", "Primero configura la evaluación")
             return
 
-        dialog = QuestionDialog(
-            self.api_client, self.evaluacion_actual.get("id"), parent=self
+        dialog = ExerciseDialog(
+            self.api_client,
+            self.modulo_actual.get("id"),
+            self.evaluacion_actual.get("id"),
+            None,
+            True,
+            self,
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
             result = self.api_client.create_pregunta(
@@ -1374,8 +702,7 @@ class EvaluationsView(QWidget):
             )
 
             if result["success"]:
-                QMessageBox.information(self, "Éxito", "Pregunta creada correctamente")
-                self.load_evaluacion(self.modulo_actual.get("id"))
+                self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
@@ -1384,11 +711,16 @@ class EvaluationsView(QWidget):
         if not self.modulo_actual or not self.evaluacion_actual:
             return
 
-        dialog = QuestionDialog(
-            self.api_client, self.evaluacion_actual.get("id"), pregunta, self
+        dialog = ExerciseDialog(
+            self.api_client,
+            self.modulo_actual.get("id"),
+            self.evaluacion_actual.get("id"),
+            pregunta,
+            True,
+            self,
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
             result = self.api_client.update_pregunta(
@@ -1399,8 +731,7 @@ class EvaluationsView(QWidget):
             )
 
             if result["success"]:
-                QMessageBox.information(self, "Éxito", "Pregunta actualizada")
-                self.load_evaluacion(self.modulo_actual.get("id"))
+                self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
@@ -1410,10 +741,10 @@ class EvaluationsView(QWidget):
             self,
             "Confirmar",
             f"¿Eliminar esta pregunta?",
-            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             result = self.api_client.delete_pregunta(
                 self.modulo_actual.get("id"),
                 self.evaluacion_actual.get("id"),
@@ -1421,9 +752,22 @@ class EvaluationsView(QWidget):
             )
 
             if result["success"]:
-                self.load_evaluacion(self.modulo_actual.get("id"))
+                self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+
+    def _on_data_changed(self, data_type: str):
+        """Manejador para actualizaciones en tiempo real"""
+        if data_type in ["preguntas", "evaluaciones", "modulos"]:
+            if self.modulo_actual:
+                self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
+            elif data_type == "modulos":
+                self.load_modulos()
+
+    def _on_evaluaciones_changed(self):
+        """Manejador directo para cambios en evaluaciones"""
+        if self.modulo_actual:
+            self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
 
     def clear_layout(self, layout):
         """Limpiar un layout"""

@@ -1,9 +1,9 @@
 import sys
 import os
 from dotenv import load_dotenv
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QIcon, QPixmap, QPainter
+from PyQt6.QtCore import Qt
 
 
 # === AGREGAR ESTA FUNCIÓN AL INICIO ===
@@ -45,18 +45,16 @@ class AdminApplication:
                 pixmap = QPixmap(icon_path)
                 if not pixmap.isNull():
                     print(
-                        f"📐 Dimensiones originales: {pixmap.width()}x{pixmap.height()}"
+                        f"[INFO] Dimensiones originales: {pixmap.width()}x{pixmap.height()}"
                     )
 
                     # Crear un pixmap con fondo transparente del tamaño del icono estándar
                     # pero mantener la proporción del logo
                     target_size = 256  # Tamaño estándar para iconos
                     final_pixmap = QPixmap(target_size, target_size)
-                    final_pixmap.fill(Qt.transparent)  # Fondo transparente
+                    final_pixmap.fill(Qt.GlobalColor.transparent)  # Fondo transparente
 
                     # Calcular posición para centrar el logo
-                    from PyQt5.QtGui import QPainter
-
                     painter = QPainter(final_pixmap)
 
                     # Escalar manteniendo aspecto y centrar
@@ -77,8 +75,8 @@ class AdminApplication:
                     scaled_pixmap = pixmap.scaled(
                         new_width,
                         new_height,
-                        Qt.KeepAspectRatio,
-                        Qt.SmoothTransformation,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
                     )
                     painter.drawPixmap(x_offset, y_offset, scaled_pixmap)
                     painter.end()
@@ -86,18 +84,18 @@ class AdminApplication:
                     # Establecer el icono con el pixmap procesado
                     self.app.setWindowIcon(QIcon(final_pixmap))
                     print(
-                        f"✅ Icono cargado y centrado correctamente desde: {icon_path}"
+                        f"[OK] Icono cargado y centrado correctamente desde: {icon_path}"
                     )
                 else:
-                    print(f"⚠️ El archivo {icon_path} está corrupto")
+                    print(f"[WARNING] El archivo {icon_path} está corrupto")
                     # Fallback a carga simple
                     self.app.setWindowIcon(QIcon(icon_path))
             except Exception as e:
-                print(f"⚠️ Error al procesar el icono: {str(e)}")
+                print(f"[WARNING] Error al procesar el icono: {str(e)}")
                 # Fallback a carga simple
                 self.app.setWindowIcon(QIcon(icon_path))
         else:
-            print(f"⚠️ No se encontró el icono en: {icon_path}")
+            print(f"[WARNING] No se encontró el icono en: {icon_path}")
 
         # Inicializar API client
         self.api_client = APIClient()
@@ -107,7 +105,7 @@ class AdminApplication:
         self.login_window.show()
 
     def run(self):
-        return self.app.exec_()
+        return self.app.exec()
 
 
 if __name__ == "__main__":

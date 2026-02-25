@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QPushButton,
@@ -6,8 +6,8 @@ from PyQt5.QtWidgets import (
     QFrame,
     QSizePolicy,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
-from PyQt5.QtGui import QFont, QPixmap, QMovie
+from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
+from PyQt6.QtGui import QFont, QPixmap, QMovie
 from utils.paths import resource_path
 import os
 
@@ -19,7 +19,9 @@ class Sidebar(QWidget):
         super().__init__()
         self.setMinimumWidth(200)
         self.setMaximumWidth(260)
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        )
 
         # Variable para animación
         self.current_hover = None
@@ -54,7 +56,7 @@ class Sidebar(QWidget):
 
         logo_layout = QVBoxLayout(logo_container)
         logo_layout.setContentsMargins(0, 15, 0, 15)
-        logo_layout.setAlignment(Qt.AlignCenter)
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         logo = QLabel()
         logo_path = resource_path(os.path.join("assets", "logo.png"))
@@ -62,17 +64,20 @@ class Sidebar(QWidget):
 
         if not logo_pixmap.isNull():
             scaled_pixmap = logo_pixmap.scaled(
-                160, 60, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                160,
+                60,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
             )
             logo.setPixmap(scaled_pixmap)
         else:
             logo.setText("VARCHATE")
-            logo.setFont(QFont("Segoe UI", 18, QFont.Bold))
+            logo.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
             logo.setStyleSheet(
                 "color: #0099FF; letter-spacing: 1px; background-color: transparent;"
             )
 
-        logo.setAlignment(Qt.AlignCenter)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_layout.addWidget(logo)
         container_layout.addWidget(logo_container)
         # Separador
@@ -132,7 +137,7 @@ class Sidebar(QWidget):
         for key, text in buttons_data:
             btn = QPushButton(text)
             btn.setCheckable(True)
-            btn.setCursor(Qt.PointingHandCursor)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet(button_style)
             btn.clicked.connect(lambda checked, k=key: self.navigate(k))
             self.buttons[key] = btn
@@ -158,7 +163,7 @@ class Sidebar(QWidget):
 
         # Cerrar sesión MEJORADO
         self.logout_btn = QPushButton("🚪 Cerrar Sesión")
-        self.logout_btn.setCursor(Qt.PointingHandCursor)
+        self.logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.logout_btn.setStyleSheet(
             """
             QPushButton {
@@ -189,30 +194,6 @@ class Sidebar(QWidget):
 
         self.setLayout(main_layout)
 
-    def set_user_info(self, nombre, email):
-        """Actualizar información del usuario"""
-        self.user_name.setText(nombre)
-        self.user_email.setText(email)
-
-        if nombre and len(nombre) > 0:
-            inicial = nombre[0].upper()
-            self.avatar_label.setText(inicial)
-            self.animate_avatar_update()
-
-    def animate_avatar_update(self):
-        """Animación al actualizar avatar"""
-        if hasattr(self, "avatar_label"):
-            anim = QPropertyAnimation(self.avatar_label, b"geometry")
-            anim.setDuration(300)
-            anim.setEasingCurve(QEasingCurve.OutBounce)
-
-            original_rect = self.avatar_label.geometry()
-            anim.setKeyValueAt(0, original_rect)
-            anim.setKeyValueAt(0.5, original_rect.adjusted(-5, -5, 5, 5))
-            anim.setKeyValueAt(1, original_rect)
-
-            anim.start()
-
     def navigate(self, page):
         """Navegar a una página"""
         for btn in self.buttons.values():
@@ -233,7 +214,7 @@ class Sidebar(QWidget):
         """Animación sutil al hacer clic"""
         anim = QPropertyAnimation(button, b"geometry")
         anim.setDuration(100)
-        anim.setEasingCurve(QEasingCurve.OutQuad)
+        anim.setEasingCurve(QEasingCurve.Type.OutQuad)
 
         original_rect = button.geometry()
         anim.setKeyValueAt(0, original_rect)
@@ -258,7 +239,7 @@ class Sidebar(QWidget):
         anim.setDuration(200)
         anim.setStartValue(start)
         anim.setEndValue(end)
-        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         anim.start()
 
     def connect_logout(self, callback):

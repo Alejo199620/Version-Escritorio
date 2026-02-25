@@ -1,5 +1,6 @@
 import os
-from PyQt5.QtWidgets import (
+import math
+from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -9,7 +10,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QFrame,
 )
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     Qt,
     QPropertyAnimation,
     QEasingCurve,
@@ -18,7 +19,7 @@ from PyQt5.QtCore import (
     QPoint,
     QSize,
 )
-from PyQt5.QtGui import (
+from PyQt6.QtGui import (
     QFont,
     QPixmap,
     QMovie,
@@ -27,132 +28,12 @@ from PyQt5.QtGui import (
     QPen,
     QBrush,
     QPainterPath,
-    QEnterEvent,
 )
 from controllers.api_client import APIClient
 from views.main_window import MainWindow
-import math
 
 from utils.paths import resource_path
-
-
-class ToastNotification(QFrame):
-    """Notificación tipo toast elegante"""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("toastNotification")
-        self.setStyleSheet(
-            """
-            QFrame#toastNotification {
-                background-color: #e74c3c;
-                border-radius: 12px;
-                border: 1px solid #c0392b;
-            }
-        """
-        )
-
-        # Inicialmente invisible y sin geometría
-        self.hide()
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 12, 20, 12)
-        layout.setSpacing(10)
-
-        # Icono de error
-        self.icon_label = QLabel("⚠️")
-        self.icon_label.setFont(QFont("Segoe UI", 14))
-        self.icon_label.setStyleSheet("color: white;")
-        layout.addWidget(self.icon_label)
-
-        # Mensaje de error
-        self.message_label = QLabel()
-        self.message_label.setFont(QFont("Segoe UI", 11, QFont.Bold))
-        self.message_label.setStyleSheet("color: white;")
-        self.message_label.setWordWrap(True)
-        layout.addWidget(self.message_label, 1)
-
-        # Botón cerrar
-        self.close_btn = QPushButton("✕")
-        self.close_btn.setFixedSize(24, 24)
-        self.close_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: transparent;
-                color: white;
-                border: none;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.2);
-                border-radius: 12px;
-            }
-        """
-        )
-        self.close_btn.clicked.connect(self.hide_with_animation)
-        layout.addWidget(self.close_btn)
-
-        # Animaciones
-        self.fade_animation = QPropertyAnimation(self, b"windowOpacity")
-        self.fade_animation.setDuration(300)
-
-        self.slide_animation = QPropertyAnimation(self, b"pos")
-        self.slide_animation.setDuration(300)
-        self.slide_animation.setEasingCurve(QEasingCurve.OutCubic)
-
-        self.timer = QTimer()
-        self.timer.setSingleShot(True)
-        self.timer.timeout.connect(self.hide_with_animation)
-
-    def show_error(self, message, duration=5000):
-        """Mostrar error con animación"""
-        self.message_label.setText(message)
-
-        # Ajustar tamaño del mensaje
-        self.adjustSize()
-
-        # Calcular posición (esquina superior derecha del contenedor principal)
-        if self.parent():
-            parent_rect = self.parent().rect()
-            x = parent_rect.width() - self.width() - 20
-            y = 20
-            target_pos = QPoint(x, y)
-
-            # Posición inicial (arriba - fuera de la pantalla)
-            start_pos = QPoint(x, -self.height())
-
-            self.setGeometry(start_pos.x(), start_pos.y(), self.width(), self.height())
-            self.show()
-
-            # Animar entrada
-            self.slide_animation.setStartValue(start_pos)
-            self.slide_animation.setEndValue(target_pos)
-            self.slide_animation.start()
-
-            self.fade_animation.setStartValue(0)
-            self.fade_animation.setEndValue(1)
-            self.fade_animation.start()
-
-        # Auto-ocultar después de la duración
-        self.timer.start(duration)
-
-    def hide_with_animation(self):
-        """Ocultar con animación"""
-        self.timer.stop()
-
-        if self.parent():
-            current_pos = self.pos()
-            end_pos = QPoint(current_pos.x(), -self.height())
-
-            self.slide_animation.setStartValue(current_pos)
-            self.slide_animation.setEndValue(end_pos)
-            self.slide_animation.finished.connect(self.hide)
-            self.slide_animation.start()
-
-            self.fade_animation.setStartValue(self.windowOpacity())
-            self.fade_animation.setEndValue(0)
-            self.fade_animation.start()
+from views.components.toast import ToastNotification
 
 
 class SpinnerWidget(QWidget):
@@ -172,12 +53,12 @@ class SpinnerWidget(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         center = QPoint(self.width() // 2, self.height() // 2)
 
         pen = QPen(QColor("#4361ee"), 2)
-        pen.setCapStyle(Qt.RoundCap)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
 
         # Círculo base
@@ -211,11 +92,12 @@ class LoadingOverlay(QFrame):
         )
 
         # MODIFICADO: Ocupar todo el espacio del padre (todo el login)
-        self.setGeometry(0, 0, parent.width(), parent.height())
+        if parent:
+            self.setGeometry(0, 0, parent.width(), parent.height())
 
         # Layout para centrar el contenido del loading
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(15)
 
         # Crear un contenedor interno para el contenido del loading
@@ -233,12 +115,12 @@ class LoadingOverlay(QFrame):
         loading_container.setFixedSize(300, 400)
 
         container_layout = QVBoxLayout(loading_container)
-        container_layout.setAlignment(Qt.AlignCenter)
+        container_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         container_layout.setSpacing(15)
 
         # Gato animado
         self.cat_label = QLabel()
-        self.cat_label.setAlignment(Qt.AlignCenter)
+        self.cat_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cat_label.setFixedSize(150, 150)
 
         gif_path = resource_path(os.path.join("assets", "cat_running.gif"))
@@ -255,13 +137,13 @@ class LoadingOverlay(QFrame):
 
         # Spinner
         self.spinner = SpinnerWidget()
-        container_layout.addWidget(self.spinner, alignment=Qt.AlignCenter)
+        container_layout.addWidget(self.spinner, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Texto de carga
         self.loading_text = QLabel("Cargando...")
         self.loading_text.setFont(QFont("Segoe UI", 12))
         self.loading_text.setStyleSheet("color: #2c3e50; padding: 3px;")
-        self.loading_text.setAlignment(Qt.AlignCenter)
+        self.loading_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_text.setWordWrap(True)
         self.loading_text.setMaximumWidth(250)
         container_layout.addWidget(self.loading_text)
@@ -270,14 +152,14 @@ class LoadingOverlay(QFrame):
         self.dots_label = QLabel("...")
         self.dots_label.setFont(QFont("Segoe UI", 16))
         self.dots_label.setStyleSheet("color: #4361ee;")
-        self.dots_label.setAlignment(Qt.AlignCenter)
+        self.dots_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         container_layout.addWidget(self.dots_label)
 
         # Texto de ADSO
         adso_text = QLabel("ADSO")
         adso_text.setFont(QFont("Segoe UI", 8))
         adso_text.setStyleSheet("color: #95a5a6; margin-top: 5px;")
-        adso_text.setAlignment(Qt.AlignCenter)
+        adso_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         container_layout.addWidget(adso_text)
 
         # BURBUJITAS ANIMADAS
@@ -285,7 +167,7 @@ class LoadingOverlay(QFrame):
         self.bubbles_widget.setGeometry(0, 0, 300, 400)
         self.bubbles_widget.lower()
 
-        layout.addWidget(loading_container, 0, Qt.AlignCenter)
+        layout.addWidget(loading_container, 0, Qt.AlignmentFlag.AlignCenter)
 
         # Timers (tus timers originales)
         self.dots_timer = QTimer()
@@ -334,7 +216,7 @@ class BubblesAnimation(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.bubbles = []
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_bubbles)
@@ -359,7 +241,7 @@ class BubblesAnimation(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         rect = self.rect()
         center = rect.center()
@@ -374,7 +256,7 @@ class BubblesAnimation(QWidget):
             # Dibujar burbuja
             color = QColor(67, 97, 238, bubble["alpha"])  # #4361ee con transparencia
             painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
+            painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(QPoint(int(x), int(y)), bubble["size"], bubble["size"])
 
 
@@ -386,8 +268,8 @@ class LoginWindow(QWidget):
         self.setFixedSize(800, 600)
 
         #  QUITAR BORDES DE WINDOWS
-        self.setWindowFlags(Qt.FramelessWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         # Variables para arrastrar la ventana
         self.drag_position = None
@@ -405,11 +287,24 @@ class LoginWindow(QWidget):
         # Conectar señal de error a nuestro método mejorado
         self.api_client.error_occurred.connect(self.show_elegant_error)
 
+        # CONFIGURACIÓN DE AUTO-LOGIN PARA PRUEBAS
+        # Se puede desactivar cambiando False o usando una variable de entorno
+        self.auto_login_enabled = True
+
+        if self.auto_login_enabled:
+            self.email_input.setText("alejo29.c@gmail.com")
+            self.password_input.setText("Password123")
+            # Iniciar login automáticamente después de un breve delay para que se vea la UI
+            QTimer.singleShot(1000, self.handle_login)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Iniciar animación de opacidad al mostrar
         self.animation = QPropertyAnimation(self, b"windowOpacity")
         self.animation.setDuration(500)
         self.animation.setStartValue(0)
         self.animation.setEndValue(1)
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.animation.start()
 
     def setup_ui(self):
@@ -417,7 +312,7 @@ class LoginWindow(QWidget):
         # Layout principal con márgenes para la sombra
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setAlignment(Qt.AlignCenter)
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Contenedor principal
         main_container = QFrame()
@@ -520,8 +415,6 @@ class LoginWindow(QWidget):
 
         container_layout.addWidget(title_bar)
 
-        # ... resto del código igual ...
-
         # Contenido (tu HBox con left_panel y right_panel)
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -548,8 +441,8 @@ class LoginWindow(QWidget):
 
         # GIF en el panel izquierdo - OCUPA TODO
         self.left_cat = QLabel()
-        self.left_cat.setAlignment(Qt.AlignCenter)
-        self.left_cat.setFixedSize(340, 470)  # Mismo tamaño que el panel (340x560)
+        self.left_cat.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.left_cat.setFixedSize(340, 470)  # Mismo tamaño que el panel
 
         cat_path = resource_path(os.path.join("assets", "login_cat.png"))
         left_movie = QMovie(cat_path)
@@ -560,9 +453,7 @@ class LoginWindow(QWidget):
             left_movie.start()
 
             # Opcional: Si quieres que la imagen cubra todo sin deformarse
-            self.left_cat.setScaledContents(
-                True
-            )  # Esto hace que la imagen se escale para llenar el QLabel
+            self.left_cat.setScaledContents(True)
         else:
             # Fallback si no hay imagen
             self.left_cat.setText("🐱")
@@ -587,17 +478,17 @@ class LoginWindow(QWidget):
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(50, 40, 50, 40)
         right_layout.setSpacing(15)
-        right_layout.setAlignment(Qt.AlignCenter)
+        right_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Título
         title = QLabel("Iniciar Sesión")
-        title.setFont(QFont("Segoe UI", 22, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
         title.setStyleSheet("color: #2c3e50;")
-        title.setAlignment(Qt.AlignCenter)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Subtítulo
         subtitle = QLabel("Ingresa tus credenciales")
-        subtitle.setAlignment(Qt.AlignCenter)
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet("color: #7f8c8d; font-size: 13px; margin-bottom: 20px;")
 
         # Campo email - FONDO BLANCO
@@ -606,35 +497,43 @@ class LoginWindow(QWidget):
         self.email_input.setStyleSheet(
             """
             QLineEdit {
-                padding: 12px;
-                border: 1px solid #e0e0e0;
+                padding: 14px 16px;
+                border: 2px solid #e5e7eb;
                 border-radius: 8px;
                 font-size: 14px;
-                background-color: white;  /* Fondo blanco */
+                background-color: white;
+                color: #1f2937;
             }
             QLineEdit:focus {
-                border-color: #4361ee;
-                background-color: white;  /* Mantener blanco al focus */
+                border: 2px solid #4a90e2;
+                background-color: #f8faff;
+            }
+            QLineEdit::placeholder {
+                color: #9ca3af;
             }
         """
         )
 
-        # Campo password - FONDO BLANCO
+        # Campo password - MEJORADO
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Contraseña")
-        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setStyleSheet(
             """
             QLineEdit {
-                padding: 12px;
-                border: 1px solid #e0e0e0;
+                padding: 14px 16px;
+                border: 2px solid #e5e7eb;
                 border-radius: 8px;
                 font-size: 14px;
-                background-color: white;  /* Fondo blanco */
+                background-color: white;
+                color: #1f2937;
             }
             QLineEdit:focus {
-                border-color: #4361ee;
-                background-color: white;  /* Mantener blanco al focus */
+                border: 2px solid #4a90e2;
+                background-color: #f8faff;
+            }
+            QLineEdit::placeholder {
+                color: #9ca3af;
             }
         """
         )
@@ -642,18 +541,15 @@ class LoginWindow(QWidget):
         self.email_input.returnPressed.connect(self.handle_login)
         self.password_input.returnPressed.connect(self.handle_login)
 
-        # Autollenado temporal
-        self.email_input.setText("alejo29.c@gmail.com")
-        self.password_input.setText("Password123")
-
-        # Botón de login
+        # Botón de login - MEJORADO
         self.login_btn = QPushButton("Acceder")
         self.login_btn.setStyleSheet(
             """
             QPushButton {
-                background-color: #4361ee;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                           stop:0 #4a90e2, stop:1 #357abd);
                 color: white;
-                padding: 14px;
+                padding: 14px 16px;
                 border: none;
                 border-radius: 8px;
                 font-size: 15px;
@@ -661,10 +557,15 @@ class LoginWindow(QWidget):
                 margin-top: 10px;
             }
             QPushButton:hover {
-                background-color: #3a56d4;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                           stop:0 #357abd, stop:1 #1f4d7b);
+            }
+            QPushButton:pressed {
+                padding: 15px 15px 13px 17px;
             }
             QPushButton:disabled {
-                background-color: #b3c7ff;
+                background-color: #d1d5db;
+                color: #9ca3af;
             }
         """
         )
@@ -686,7 +587,7 @@ class LoginWindow(QWidget):
         container_layout.addLayout(content_layout)
 
         # Agregar contenedor principal al layout
-        main_layout.addWidget(main_container, 0, Qt.AlignCenter)
+        main_layout.addWidget(main_container, 0, Qt.AlignmentFlag.AlignCenter)
 
         # Crear toast notification como hijo del main_container
         self.toast = ToastNotification(main_container)
@@ -699,16 +600,22 @@ class LoginWindow(QWidget):
 
     #  MÉTODOS PARA ARRASTRAR LA VENTANA
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             # Solo arrastrar si se hace clic en la barra de título
-            if event.pos().y() <= 40:  # Altura de la barra de título
-                self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
+            if event.position().y() <= 40:  # Altura de la barra de título
+                self.drag_position = (
+                    event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                )
                 self.is_dragging = True
                 event.accept()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton and self.is_dragging and self.drag_position:
-            self.move(event.globalPos() - self.drag_position)
+        if (
+            event.buttons() & Qt.MouseButton.LeftButton
+            and self.is_dragging
+            and self.drag_position
+        ):
+            self.move(event.globalPosition().toPoint() - self.drag_position)
             event.accept()
 
     def mouseReleaseEvent(self, event):
@@ -780,7 +687,7 @@ class LoginWindow(QWidget):
         anim.setKeyValueAt(0.5, widget.pos() - QPoint(5, 0))
         anim.setKeyValueAt(0.75, widget.pos() + QPoint(5, 0))
         anim.setKeyValueAt(1, widget.pos())
-        anim.start(QPropertyAnimation.DeleteWhenStopped)
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
 
         original_style = widget.styleSheet()
         widget.setStyleSheet(original_style + "border-color: #e74c3c;")

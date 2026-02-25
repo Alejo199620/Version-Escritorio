@@ -6,7 +6,7 @@ import hashlib
 import re
 from typing import Dict, Any, Optional, Callable, List
 from functools import wraps
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QThread
 import logging
 from datetime import datetime, timedelta
 
@@ -401,10 +401,15 @@ class APIClient(QObject):
         params: Dict = None,
         cache_type: str = None,
         force_refresh: bool = False,
+        fields: List[str] = None,
     ) -> Dict[str, Any]:
         """GET con caché - ULTRA RÁPIDO"""
+        params = params or {}
+        if fields:
+            params["fields"] = ",".join(fields)
+            
         if force_refresh or not cache_type:
-            return self._request("GET", endpoint, params=params or {})
+            return self._request("GET", endpoint, params=params)
 
         # Verificar si el tipo de caché está habilitado
         config = self.cache_config.get(cache_type, {})
@@ -677,8 +682,19 @@ class APIClient(QObject):
             "estado": data.get("estado", "activo"),
         }
 
-        if data.get("avatar_id"):
-            api_data["avatar_id"] = data["avatar_id"]
+        # avatar_id: entero FK a tabla avatars (1-9)
+        if data.get("avatar_id") is not None:
+            api_data["avatar_id"] = int(data["avatar_id"])
+        elif data.get("avatar") is not None:
+            # Compatibilidad: si viene como string 'avatar_01', convertir a int
+            av = data["avatar"]
+            if isinstance(av, str) and av.startswith("avatar_"):
+                try:
+                    api_data["avatar_id"] = int(av.replace("avatar_", ""))
+                except Exception:
+                    pass
+            elif isinstance(av, int):
+                api_data["avatar_id"] = av
 
         return self.post(
             "/admin/usuarios", json=api_data, invalidate_cache=["usuarios"]
@@ -702,15 +718,66 @@ class APIClient(QObject):
             f"/admin/usuarios/{usuario_id}/toggle-status", invalidate_cache=["usuarios"]
         )
 
+    def upload_avatar(self, file_path: str) -> Dict[str, Any]:
+        """Subir archivo de avatar personalizado"""
+        try:
+            if not os.path.exists(file_path):
+                return {"success": False, "error": "El archivo no existe"}
+            
+            # Validar extensión
+            valid_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp'}
+            file_ext = os.path.splitext(file_path)[1].lower()
+            if file_ext not in valid_extensions:
+                return {"success": False, "error": f"Formato no permitido. Usa: {', '.join(valid_extensions)}"}
+            
+            # Validar tamaño (máx 5MB)
+            file_size = os.path.getsize(file_path)
+            if file_size > 5 * 1024 * 1024:
+                return {"success": False, "error": "El archivo es demasiado grande. Máximo 5MB"}
+            
+            # Subir archivo
+            upload_headers = {}
+            if self.token:
+                upload_headers["Authorization"] = f"Bearer {self.token}"
+            with open(file_path, 'rb') as f:
+                files = {'avatar': (os.path.basename(file_path), f, 'image/*')}
+                response = requests.post(
+                    f"{self.base_url}/admin/avatars/upload",
+                    files=files,
+                    headers=upload_headers,
+                    timeout=30
+                )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    "success": True,
+                    "avatar_id": data.get("id") or data.get("avatar_id"),
+                    "url": data.get("url"),
+                    "message": "Avatar subido correctamente"
+                }
+            else:
+                error = response.json().get("error", "Error al subir avatar")
+                return {"success": False, "error": error}
+        except Exception as e:
+            logger.error(f"Error uploading avatar: {e}")
+            return {"success": False, "error": str(e)}
+
     # ============= MÓDULOS =============
     def get_modulos(
-        self, params: Dict = None, force_refresh: bool = False
+        self, params: Dict = None, force_refresh: bool = False, summary: bool = False
     ) -> Dict[str, Any]:
+        """
+        Obtener módulos.
+        Si summary=True, solo pide campos mínimos para el listado.
+        """
+        fields = ["id", "titulo", "orden_global", "estado", "modulo"] if summary else None
         return self.get(
             "/admin/modulos",
             params=params or {},
             cache_type="modulos",
             force_refresh=force_refresh,
+            fields=fields
         )
 
     def get_modulo(self, modulo_id: int, force_refresh: bool = False) -> Dict[str, Any]:
@@ -815,8 +882,8 @@ class APIClient(QObject):
         )
 
     def create_leccion(self, modulo_id: int, data: Dict) -> Dict[str, Any]:
-        if not data.get("titulo") or not data.get("contenido"):
-            return {"success": False, "error": "Título y contenido requeridos"}
+        if not data.get("titulo"):
+            return {"success": False, "error": "Título requerido"}
 
         # Asegurar que se incluya created_by
         api_data = dict(data)
@@ -947,20 +1014,6 @@ class APIClient(QObject):
             json=data,
             invalidate_cache=["evaluaciones"],
         )
-
-    def invalidate_cache_type(self, cache_type: str):
-        """Invalidar caché de evaluaciones"""
-        keys_to_delete = []
-        for key in list(self.cache.keys()):
-            if "evaluaciones" in key.lower():
-                keys_to_delete.append(key)
-
-        for key in keys_to_delete:
-            del self.cache[key]
-
-        # Notificar cambios
-        self.evaluaciones_changed.emit()
-        self.data_changed.emit("evaluaciones")
 
     def create_pregunta(
         self, modulo_id: int, evaluacion_id: int, data: Dict

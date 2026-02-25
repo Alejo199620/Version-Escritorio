@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -23,17 +23,18 @@ from PyQt5.QtWidgets import (
     QSplitter,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont, QColor
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QColor
 import logging
 
 from views.components.rich_text_editor import RichTextEditor
 from views.exercises_view import ExerciseDialog  # <-- IMPORTANTE: esta importación
 from utils.paths import resource_path
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
 
 
 class ExerciseItemWidget(QWidget):
@@ -64,7 +65,7 @@ class ExerciseItemWidget(QWidget):
         """
         )
         self.setFixedHeight(60)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
@@ -91,7 +92,7 @@ class ExerciseItemWidget(QWidget):
             pregunta = pregunta[:50] + "..."
 
         pregunta_label = QLabel(pregunta)
-        pregunta_label.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        pregunta_label.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         pregunta_label.setStyleSheet("color: #2c3e50;")
         content_layout.addWidget(pregunta_label)
 
@@ -158,6 +159,7 @@ class LessonDialog(QDialog):
         self.modulo_id = modulo_id
         self.lesson_data = lesson_data
         self.ejercicios = []
+        self.pending_exercises = []  # <--- Ejercicios en memoria (staging)
         self.setWindowTitle("Editar Lección" if lesson_data else "Nueva Lección")
         self.setMinimumSize(800, 700)
         self.setup_ui()
@@ -203,7 +205,7 @@ class LessonDialog(QDialog):
         title = QLabel(
             "📖 " + ("Editar Lección" if self.lesson_data else "Nueva Lección")
         )
-        title.setFont(QFont("Segoe UI", 22, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
         title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
         layout.addWidget(title)
 
@@ -331,13 +333,13 @@ class LessonDialog(QDialog):
         self.exercises_group.setVisible(False)
 
         # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Guardar Lección")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Guardar Lección")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
 
         for btn in [
-            buttons.button(QDialogButtonBox.Ok),
-            buttons.button(QDialogButtonBox.Cancel),
+            buttons.button(QDialogButtonBox.StandardButton.Ok),
+            buttons.button(QDialogButtonBox.StandardButton.Cancel),
         ]:
             btn.setStyleSheet(
                 """
@@ -351,13 +353,13 @@ class LessonDialog(QDialog):
             """
             )
 
-        buttons.button(QDialogButtonBox.Ok).setStyleSheet(
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setStyleSheet(
             """
             background-color: #3498db;
             color: white;
         """
         )
-        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setStyleSheet(
             """
             background-color: #95a5a6;
             color: white;
@@ -371,72 +373,99 @@ class LessonDialog(QDialog):
 
     def on_ejercicios_changed(self, state):
         """Mostrar/ocultar sección de ejercicios"""
-        self.exercises_group.setVisible(state == Qt.Checked)
-        if state == Qt.Checked and self.lesson_data:
+        self.exercises_group.setVisible(state == Qt.CheckState.Checked.value)
+        if state == Qt.CheckState.Checked.value and self.lesson_data:
             self.cargar_ejercicios()
 
     def cargar_ejercicios(self):
         """Cargar ejercicios de la lección"""
-        if not self.lesson_data:
-            return
-
-        logger.debug(f"Cargando ejercicios para lección {self.lesson_data['id']}")
+        logger.debug(f"Cargando ejercicios. Lesson data: {bool(self.lesson_data)}")
         self.exercises_list.clear()
 
-        result = self.api_client.get_ejercicios(self.modulo_id, self.lesson_data["id"])
-
-        if result["success"]:
-            data = result.get("data", [])
-            if isinstance(data, list):
-                self.ejercicios = data
-            elif isinstance(data, dict) and "data" in data:
-                self.ejercicios = data["data"]
+        # 1. Cargar ejercicios reales de la API (si existen)
+        if self.lesson_data:
+            result = self.api_client.get_ejercicios(self.modulo_id, self.lesson_data["id"], force_refresh=True)
+            if result["success"]:
+                data = result.get("data", [])
+                if isinstance(data, list):
+                    self.ejercicios = data
+                elif isinstance(data, dict) and "data" in data:
+                    self.ejercicios = data["data"]
+                else:
+                    self.ejercicios = []
             else:
                 self.ejercicios = []
+        else:
+            self.ejercicios = []
 
-            logger.debug(f"Ejercicios cargados: {len(self.ejercicios)}")
+        # 2. Combinar con ejercicios pendientes (staging)
+        # Marcamos los pendientes con un flag especial para visualización
+        all_exercises = list(self.ejercicios)
+        for pe in self.pending_exercises:
+            pe_copy = dict(pe)
+            pe_copy["_is_pending"] = True
+            all_exercises.append(pe_copy)
 
-            if not self.ejercicios:
-                # Mostrar mensaje si no hay ejercicios
-                item = QListWidgetItem("📭 No hay ejercicios creados")
-                item.setForeground(QColor("#95a5a6"))
-                item.setFlags(Qt.NoItemFlags)
+        logger.debug(f"Total ejercicios: {len(all_exercises)} (API: {len(self.ejercicios)}, Pending: {len(self.pending_exercises)})")
+
+        if not all_exercises:
+            # Mostrar mensaje si no hay ejercicios
+            item = QListWidgetItem("📭 No hay ejercicios creados")
+            item.setForeground(QColor("#95a5a6"))
+            item.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.exercises_list.addItem(item)
+        else:
+            for ejercicio in all_exercises:
+                item = QListWidgetItem()
+                widget = ExerciseItemWidget(ejercicio)
+                
+                # Estilo especial para pendientes
+                if ejercicio.get("_is_pending"):
+                    widget.setStyleSheet(widget.styleSheet() + "\nQWidget { background-color: #fff9f0; }")
+                    widget.edit_btn.setToolTip("Disponible después de guardar la lección")
+                    widget.edit_btn.setEnabled(False) 
+                
+                widget.edit_clicked.connect(self.editar_ejercicio)
+                widget.delete_clicked.connect(self.eliminar_ejercicio)
+
+                item.setSizeHint(widget.sizeHint())
                 self.exercises_list.addItem(item)
-            else:
-                for ejercicio in self.ejercicios:
-                    item = QListWidgetItem()
-                    widget = ExerciseItemWidget(ejercicio)
-                    widget.edit_clicked.connect(self.editar_ejercicio)
-                    widget.delete_clicked.connect(self.eliminar_ejercicio)
-
-                    item.setSizeHint(widget.sizeHint())
-                    self.exercises_list.addItem(item)
-                    self.exercises_list.setItemWidget(item, widget)
+                self.exercises_list.setItemWidget(item, widget)
 
     def nuevo_ejercicio(self):
-        """Crear nuevo ejercicio"""
-        if not self.lesson_data:
-            QMessageBox.warning(self, "Error", "Primero debes guardar la lección")
-            return
-
+        """Crear nuevo ejercicio (soporta staging si la lección es nueva)"""
         logger.debug("Abriendo diálogo para nuevo ejercicio")
+        
+        # Pasar ID temporal o real
+        lesson_id = self.lesson_data["id"] if self.lesson_data else 0
         dialog = ExerciseDialog(
-            self.api_client, self.modulo_id, self.lesson_data["id"], parent=self
+            self.api_client, self.modulo_id, lesson_id, parent=self
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             if data is None:
                 return
 
-            logger.debug(f"Creando ejercicio con datos: {data}")
+            if not self.lesson_data:
+                # Caso: Lección nueva, guardamos en staging
+                logger.debug(f"Agregando ejercicio a staging: {data.get('pregunta')}")
+                self.pending_exercises.append(data)
+                self.cargar_ejercicios()
+                self.exercises_list.scrollToBottom()
+                if not self.ejercicios_check.isChecked():
+                    self.ejercicios_check.setChecked(True)
+                return
+
+            # Caso: Lección existente, guardar directo en API
+            logger.debug(f"Creando ejercicio directo en API: {data}")
             result = self.api_client.create_ejercicio(
                 self.modulo_id, self.lesson_data["id"], data
             )
 
             if result["success"]:
-                QMessageBox.information(self, "Éxito", "Ejercicio creado correctamente")
                 self.cargar_ejercicios()
+                self.exercises_list.scrollToBottom()
                 # Asegurar que el checkbox esté marcado
                 if not self.ejercicios_check.isChecked():
                     self.ejercicios_check.setChecked(True)
@@ -456,7 +485,7 @@ class LessonDialog(QDialog):
             self.api_client, self.modulo_id, self.lesson_data["id"], ejercicio, self
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             if data is None:
                 return
@@ -466,9 +495,6 @@ class LessonDialog(QDialog):
             )
 
             if result["success"]:
-                QMessageBox.information(
-                    self, "Éxito", "Ejercicio actualizado correctamente"
-                )
                 self.cargar_ejercicios()
             else:
                 error_msg = result.get("error", "Error desconocido")
@@ -482,20 +508,17 @@ class LessonDialog(QDialog):
             self,
             "Confirmar eliminación",
             f"¿Estás seguro de eliminar este ejercicio?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             logger.debug(f"Eliminando ejercicio: {ejercicio.get('id')}")
             result = self.api_client.delete_ejercicio(
                 self.modulo_id, self.lesson_data["id"], ejercicio["id"]
             )
 
             if result["success"]:
-                QMessageBox.information(
-                    self, "Éxito", "Ejercicio eliminado correctamente"
-                )
                 self.cargar_ejercicios()
                 # Si no quedan ejercicios, podemos desmarcar el checkbox
                 if not self.ejercicios:
@@ -529,6 +552,10 @@ class LessonDialog(QDialog):
             "estado": self.estado_combo.currentText(),
         }
 
+    def get_pending_exercises(self):
+        """Retorna la lista de ejercicios en staging"""
+        return self.pending_exercises
+
 
 # El resto de las clases (LessonDetailView, LessonsView) se mantienen igual...
 class LessonDetailView(QWidget):
@@ -547,7 +574,7 @@ class LessonDetailView(QWidget):
 
         # Título
         title = QLabel(f"📖 {self.leccion.get('titulo', 'Lección')}")
-        title.setFont(QFont("Segoe UI", 24, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
         layout.addWidget(title)
 
         # Contenido
@@ -568,6 +595,9 @@ class LessonsView(QWidget):
         self.modulo_actual = None
         self.setup_ui()
         self.load_modulos()
+        
+        # Conectar señales para actualización en tiempo real
+        self.api_client.data_changed.connect(self._on_data_changed)
 
     def setup_ui(self):
         self.setStyleSheet(
@@ -596,7 +626,7 @@ class LessonsView(QWidget):
         header_layout = QHBoxLayout()
 
         title = QLabel("📖 Lecciones")
-        title.setFont(QFont("Segoe UI", 22, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
         header_layout.addWidget(title)
 
         header_layout.addStretch()
@@ -613,20 +643,80 @@ class LessonsView(QWidget):
         self.refresh_btn.clicked.connect(self.load_modulos)
         header_layout.addWidget(self.refresh_btn)
 
+        self.new_lesson_btn = QPushButton("+ Nueva Lección")
+        self.new_lesson_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #10b981;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #059669; }
+            QPushButton:disabled { background-color: #9ca3af; }
+            """
+        )
+        self.new_lesson_btn.setEnabled(False)  # Se activa cuando se selecciona un módulo
+        self.new_lesson_btn.clicked.connect(self.nueva_leccion)
+        header_layout.addWidget(self.new_lesson_btn)
+
         layout.addLayout(header_layout)
 
-        # Tabla de lecciones
+        # Contenedor apilado (StackedWidget) para Placeholder / Tabla
+        self.stack = QStackedWidget()
+        
+        # --- PÁGINA 0: PLACEHOLDER ---
+        self.placeholder = self._create_placeholder()
+        self.stack.addWidget(self.placeholder)
+
+        # --- PÁGINA 1: TABLA ---
+        table_container = QWidget()
+        table_layout = QVBoxLayout(table_container)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(
             ["ID", "Título", "Orden", "Ejercicios", "Acciones"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
-
-        layout.addWidget(self.table)
+        table_layout.addWidget(self.table)
+        
+        self.stack.addWidget(table_container)
+        layout.addWidget(self.stack)
 
         self.setLayout(layout)
+
+    def _create_placeholder(self) -> QFrame:
+        """Crea la vista de placeholder"""
+        frame = QFrame()
+        frame.setStyleSheet("background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;")
+        
+        layout = QVBoxLayout(frame)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
+
+        icon = QLabel("📂")
+        icon.setFont(QFont("Segoe UI", 64))
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+
+        text = QLabel("Seleccione un módulo para gestionar sus lecciones")
+        text.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        text.setStyleSheet("color: #64748b;")
+        text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(text)
+
+        subtext = QLabel("Use el selector superior para comenzar")
+        subtext.setStyleSheet("color: #94a3b8; font-size: 14px;")
+        subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtext)
+
+        return frame
 
     def load_modulos(self):
         """Cargar módulos"""
@@ -648,18 +738,24 @@ class LessonsView(QWidget):
         if index <= 0:
             self.modulo_actual = None
             self.lecciones = []
-            self.actualizar_tabla([])
+            self.stack.setCurrentIndex(0)
+            if hasattr(self, "new_lesson_btn"):
+                self.new_lesson_btn.setEnabled(False)
             return
+
+        self.stack.setCurrentIndex(1)
 
         modulo_id = self.modulo_combo.currentData()
         self.modulo_actual = next(
             (m for m in self.modulos if m["id"] == modulo_id), None
         )
+        if hasattr(self, "new_lesson_btn"):
+            self.new_lesson_btn.setEnabled(self.modulo_actual is not None)
         self.load_lecciones(modulo_id)
 
-    def load_lecciones(self, modulo_id):
+    def load_lecciones(self, modulo_id, force_refresh=False):
         """Cargar lecciones del módulo"""
-        result = self.api_client.get_lecciones(modulo_id)
+        result = self.api_client.get_lecciones(modulo_id, force_refresh=force_refresh)
         if result["success"]:
             data = result.get("data", [])
             if isinstance(data, list):
@@ -712,20 +808,46 @@ class LessonsView(QWidget):
             acciones_layout.addStretch()
             self.table.setCellWidget(row, 4, acciones)
 
+    def nueva_leccion(self):
+        """Crear nueva lección en el módulo seleccionado"""
+        if not self.modulo_actual:
+            QMessageBox.warning(self, "Aviso", "Selecciona un módulo primero")
+            return
+
+        dialog = LessonDialog(self.api_client, self.modulo_actual["id"], parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            data = dialog.get_data()
+            if data is None:
+                return
+            result = self.api_client.create_leccion(self.modulo_actual["id"], data)
+            if result["success"]:
+                # Guardar ejercicios pendientes si existen (Cascading Save)
+                nueva_leccion_data = result.get("data", {})
+                leccion_id = nueva_leccion_data.get("id")
+                pending_exercises = dialog.get_pending_exercises()
+
+                if leccion_id and pending_exercises:
+                    logger.debug(f"Guardando {len(pending_exercises)} ejercicios pendientes para lección {leccion_id}")
+                    for exercise_data in pending_exercises:
+                        self.api_client.create_ejercicio(self.modulo_actual["id"], leccion_id, exercise_data)
+
+                self.load_lecciones(self.modulo_actual["id"], force_refresh=True)
+            else:
+                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+
     def editar_leccion(self, leccion):
         """Editar lección"""
         if not self.modulo_actual:
             return
 
         dialog = LessonDialog(self.api_client, self.modulo_actual["id"], leccion, self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             result = self.api_client.update_leccion(
                 self.modulo_actual["id"], leccion["id"], data
             )
             if result["success"]:
-                QMessageBox.information(self, "Éxito", "Lección actualizada")
-                self.load_lecciones(self.modulo_actual["id"])
+                self.load_lecciones(self.modulo_actual["id"], force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
@@ -735,14 +857,22 @@ class LessonsView(QWidget):
             self,
             "Confirmar",
             f"¿Eliminar lección '{leccion.get('titulo')}'?",
-            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes and self.modulo_actual:
+        if reply == QMessageBox.StandardButton.Yes and self.modulo_actual:
             result = self.api_client.delete_leccion(
                 self.modulo_actual["id"], leccion["id"]
             )
             if result["success"]:
-                self.load_lecciones(self.modulo_actual["id"])
+                self.load_lecciones(self.modulo_actual["id"], force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+
+    def _on_data_changed(self, data_type: str):
+        """Manejador para actualizaciones en tiempo real"""
+        if data_type == "lecciones" or data_type == "modulos":
+            if self.modulo_actual:
+                self.load_lecciones(self.modulo_actual["id"], force_refresh=True)
+            else:
+                self.load_modulos()

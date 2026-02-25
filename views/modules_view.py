@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -32,8 +32,9 @@ from PyQt5.QtWidgets import (
     QApplication,
     QGraphicsDropShadowEffect,
     QProgressBar,
+    QAbstractItemView,
 )
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     Qt,
     pyqtSignal,
     QTimer,
@@ -42,7 +43,7 @@ from PyQt5.QtCore import (
     QEasingCurve,
     QPoint,
 )
-from PyQt5.QtGui import (
+from PyQt6.QtGui import (
     QFont,
     QColor,
     QPalette,
@@ -57,11 +58,13 @@ import logging
 import re
 from utils.paths import resource_path
 from views.lessons_view import LessonDialog
+from views.exercises_view import ExerciseDialog
 from views.components.rich_text_editor import RichTextEditor
+from views.styles import StyleHelper
 
 # Configuración de logging
-logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
+
 
 
 # ============================================================================
@@ -69,151 +72,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-class StyleHelper:
-    """
-    Clase helper que centraliza la definición de estilos y colores
-    para mantener consistencia visual en toda la aplicación.
-    """
-
-    # Paleta de colores principal
-    PRIMARY_COLOR = "#4361ee"
-    SECONDARY_COLOR = "#3f37c9"
-    SUCCESS_COLOR = "#4cc9f0"
-    DANGER_COLOR = "#f72585"
-    WARNING_COLOR = "#f8961e"
-    INFO_COLOR = "#4895ef"
-    LIGHT_BG = "#f8f9fa"
-    DARK_BG = "#212529"
-    BORDER_COLOR = "#dee2e6"
-
-    @staticmethod
-    def card_style() -> str:
-        """Estilo para tarjetas con efecto hover"""
-        return """
-            QFrame {
-                background-color: white;
-                border-radius: 12px;
-                border: 1px solid #e9ecef;
-            }
-            QFrame:hover {
-                border: 2px solid #4361ee;
-                background-color: #f8f9fa;
-            }
-        """
-
-    @staticmethod
-    def button_primary() -> str:
-        """Estilo para botón principal"""
-        return f"""
-            QPushButton {{
-                background-color: {StyleHelper.PRIMARY_COLOR};
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-weight: bold;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{
-                background-color: {StyleHelper.SECONDARY_COLOR};
-            }}
-        """
-
-    @staticmethod
-    def button_success() -> str:
-        """Estilo para botón de éxito/confirmación"""
-        return f"""
-            QPushButton {{
-                background-color: {StyleHelper.SUCCESS_COLOR};
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-weight: bold;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{
-                background-color: #3aa8d8;
-            }}
-        """
-
-    @staticmethod
-    def button_danger() -> str:
-        """Estilo para botón de peligro/eliminación"""
-        return f"""
-            QPushButton {{
-                background-color: {StyleHelper.DANGER_COLOR};
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-weight: bold;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{
-                background-color: #d91c72;
-            }}
-        """
-
-    @staticmethod
-    def button_warning() -> str:
-        """Estilo para botón de advertencia"""
-        return f"""
-            QPushButton {{
-                background-color: {StyleHelper.WARNING_COLOR};
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-weight: bold;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{
-                background-color: #e07c0e;
-            }}
-        """
-
-    @staticmethod
-    def badge_active() -> str:
-        """Estilo para badge de estado activo"""
-        return """
-            QLabel {
-                background-color: #d1fae5;
-                color: #065f46;
-                padding: 4px 12px;
-                border-radius: 16px;
-                font-size: 11px;
-                font-weight: bold;
-            }
-        """
-
-    @staticmethod
-    def badge_inactive() -> str:
-        """Estilo para badge de estado inactivo"""
-        return """
-            QLabel {
-                background-color: #fee2e2;
-                color: #991b1b;
-                padding: 4px 12px;
-                border-radius: 16px;
-                font-size: 11px;
-                font-weight: bold;
-            }
-        """
-
-    @staticmethod
-    def badge_draft() -> str:
-        """Estilo para badge de estado borrador"""
-        return """
-            QLabel {
-                background-color: #fff3cd;
-                color: #856404;
-                padding: 4px 12px;
-                border-radius: 16px;
-                font-size: 11px;
-                font-weight: bold;
-            }
-        """
+# Estilos centralizados en views.styles.py
 
 
 # ============================================================================
@@ -248,20 +107,20 @@ class ModernCard(QFrame):
         """Configura las animaciones de movimiento al hover"""
         self.animation = QPropertyAnimation(self, b"pos")
         self.animation.setDuration(150)
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
     def _setup_ui(self) -> None:
         """Configura la interfaz de usuario de la tarjeta"""
         self.setObjectName("modernCard")
-        self.setFixedHeight(200)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(150)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.setStyleSheet(
             """
             #modernCard {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                                           stop:0 #ffffff, stop:1 #fafbfc);
-                border-radius: 16px;
+                border-radius: 12px;
                 border: 1px solid #edf2f7;
             }
             #modernCard:hover {
@@ -273,20 +132,20 @@ class ModernCard(QFrame):
         )
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(6)
+        layout.setContentsMargins(15, 12, 15, 12)
 
         # --- HEADER: Tipo y título ---
         header = QHBoxLayout()
-        header.setSpacing(12)
+        header.setSpacing(10)
 
         # Título del módulo
         titulo = self.modulo.get("titulo", "Sin título")
-        if len(titulo) > 40:
-            titulo = titulo[:37] + "..."
+        if len(titulo) > 30:
+            titulo = titulo[:27] + "..."
 
         title = QLabel(titulo)
-        title.setFont(QFont("Segoe UI", 15, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         title.setStyleSheet("color: #1e293b;")
         header.addWidget(title, 1)
 
@@ -296,9 +155,9 @@ class ModernCard(QFrame):
             """
             background-color: #e2e8f0;
             color: #475569;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 10px;
+            padding: 2px 10px;
+            border-radius: 15px;
+            font-size: 9px;
             font-weight: bold;
         """
         )
@@ -306,34 +165,33 @@ class ModernCard(QFrame):
 
         layout.addLayout(header)
 
-        # --- DESCRIPCIÓN (texto plano sin HTML) ---
+        # --- DESCRIPCIÓN ---
         desc = self.modulo.get("descripcion_larga", "Sin descripción")
         if desc:
-            # Eliminar etiquetas HTML
             desc = re.sub("<[^<]+?>", "", desc)
-            palabras = desc.split()[:15]
-            desc = " ".join(palabras) + ("..." if len(palabras) == 15 else "")
+            palabras = desc.split()[:10]
+            desc = " ".join(palabras) + ("..." if len(palabras) == 10 else "")
 
         desc_label = QLabel(desc)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #64748b; font-size: 12px; line-height: 1.5;")
-        desc_label.setFixedHeight(50)
+        desc_label.setStyleSheet("color: #64748b; font-size: 11px; line-height: 1.4;")
+        desc_label.setFixedHeight(35)
         layout.addWidget(desc_label)
 
         # --- BARRA DE PROGRESO ---
         progress_container = QFrame()
-        progress_container.setFixedHeight(6)
+        progress_container.setFixedHeight(4)
         progress_container.setStyleSheet(
-            "background-color: #e9ecef; border-radius: 3px;"
+            "background-color: #e9ecef; border-radius: 2px;"
         )
-
+        # ... resto igual pero ajustado ...
         progress_layout = QHBoxLayout(progress_container)
         progress_layout.setContentsMargins(0, 0, 0, 0)
 
         progress = QFrame()
-        progress.setFixedHeight(6)
-        progress.setFixedWidth(int(200 * (self.modulo.get("progreso", 0) / 100)))
-        progress.setStyleSheet("background-color: #4361ee; border-radius: 3px;")
+        progress.setFixedHeight(4)
+        progress.setFixedWidth(int(150 * (self.modulo.get("progreso", 0) / 100)))
+        progress.setStyleSheet("background-color: #4361ee; border-radius: 2px;")
         progress_layout.addWidget(progress)
         progress_layout.addStretch()
 
@@ -341,41 +199,37 @@ class ModernCard(QFrame):
 
         # --- FOOTER: Estadísticas y estado ---
         footer = QHBoxLayout()
-        footer.setSpacing(16)
+        footer.setSpacing(12)
 
-        # Estadísticas de lecciones y duración
-        stats = [
-            f"{self.modulo.get('total_lecciones', 0)} lecciones",
-            f"{self.modulo.get('duracion', 0)} min",
-        ]
-
-        for stat in stats:
-            stat_label = QLabel(stat)
-            stat_label.setStyleSheet(
-                "color: #4361ee; font-size: 11px; font-weight: 500;"
-            )
-            footer.addWidget(stat_label)
+        # Estadísticas de lecciones
+        lecciones_count = self.modulo.get('total_lecciones', 0)
+        stat_label = QLabel(f"{lecciones_count} lecciones")
+        stat_label.setStyleSheet(
+            "color: #4361ee; font-size: 10px; font-weight: 500;"
+        )
+        footer.addWidget(stat_label)
 
         footer.addStretch()
 
         # Badge de estado del módulo
         estado = self.modulo.get("estado", "inactivo")
         estado_label = QLabel(estado.upper())
+        estado_label.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
 
         if estado == "activo":
-            estado_label.setStyleSheet(StyleHelper.badge_active())
+            estado_label.setStyleSheet(StyleHelper.badge_active().replace("padding: 4px 12px", "padding: 2px 8px").replace("font-size: 10px", "font-size: 8px"))
         elif estado == "inactivo":
-            estado_label.setStyleSheet(StyleHelper.badge_inactive())
+            estado_label.setStyleSheet(StyleHelper.badge_inactive().replace("padding: 4px 12px", "padding: 2px 8px").replace("font-size: 10px", "font-size: 8px"))
         else:
-            estado_label.setStyleSheet(StyleHelper.badge_draft())
+            estado_label.setStyleSheet(StyleHelper.badge_draft().replace("padding: 4px 12px", "padding: 2px 8px").replace("font-size: 10px", "font-size: 8px"))
 
         footer.addWidget(estado_label)
         layout.addLayout(footer)
 
         # Orden global del módulo
         orden_label = QLabel(f"Orden #{self.modulo.get('orden_global', 1)}")
-        orden_label.setStyleSheet("color: #94a3b8; font-size: 10px;")
-        orden_label.setAlignment(Qt.AlignRight)
+        orden_label.setStyleSheet("color: #94a3b8; font-size: 9px;")
+        orden_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addWidget(orden_label)
 
     def mousePressEvent(self, event) -> None:
@@ -421,7 +275,7 @@ class EnhancedLessonItem(QWidget):
     def _setup_ui(self) -> None:
         """Configura la interfaz de usuario del item de lección"""
         self.setFixedHeight(90)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Efecto de sombra
         shadow = QGraphicsDropShadowEffect()
@@ -461,7 +315,7 @@ class EnhancedLessonItem(QWidget):
         )
 
         indicator_layout = QVBoxLayout(indicator_container)
-        indicator_layout.setAlignment(Qt.AlignCenter)
+        indicator_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Indicador si tiene ejercicios
         indicator = "📝" if self.leccion.get("tiene_ejercicios") else "📄"
@@ -481,7 +335,7 @@ class EnhancedLessonItem(QWidget):
             titulo = titulo[:47] + "..."
 
         titulo_label = QLabel(titulo)
-        titulo_label.setFont(QFont("Segoe UI", 13, QFont.Bold))
+        titulo_label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
         titulo_label.setStyleSheet("color: #1e293b;")
         content.addWidget(titulo_label)
 
@@ -650,7 +504,7 @@ class StatsWidget(QWidget):
 
         # Valor
         valor_label = QLabel(str(valor))
-        valor_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        valor_label.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
         valor_label.setStyleSheet(f"color: {color};")
         card_layout.addWidget(valor_label)
 
@@ -702,7 +556,7 @@ class EvaluationConfigCard(QFrame):
         header = QHBoxLayout()
 
         title = QLabel("Configuración de Evaluación")
-        title.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
         title.setStyleSheet("color: #1e293b;")
         header.addWidget(title)
         header.addStretch()
@@ -711,7 +565,7 @@ class EvaluationConfigCard(QFrame):
         estado = self.eval_data.get("estado", "inactivo")
         self.status_badge = QLabel(estado.upper())
         self.status_badge.setFixedHeight(32)
-        self.status_badge.setAlignment(Qt.AlignCenter)
+        self.status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         if estado == "activo":
             self.status_badge.setStyleSheet(StyleHelper.badge_active())
@@ -775,7 +629,7 @@ class EvaluationConfigCard(QFrame):
         param_layout.addWidget(label_widget)
 
         value_widget = QLabel(value)
-        value_widget.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        value_widget.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
         value_widget.setStyleSheet("color: #1e293b;")
         param_layout.addWidget(value_widget)
 
@@ -805,7 +659,7 @@ class QuestionItemWidget(QWidget):
     def _setup_ui(self) -> None:
         """Configura la interfaz de usuario del item de pregunta"""
         self.setFixedHeight(80)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.setStyleSheet(
             """
@@ -838,7 +692,7 @@ class QuestionItemWidget(QWidget):
         )
 
         tipo_layout = QVBoxLayout(tipo_frame)
-        tipo_layout.setAlignment(Qt.AlignCenter)
+        tipo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Icono según tipo de pregunta
         tipo_icon = {
@@ -862,7 +716,7 @@ class QuestionItemWidget(QWidget):
             pregunta_text = pregunta_text[:57] + "..."
 
         pregunta_label = QLabel(pregunta_text)
-        pregunta_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        pregunta_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         pregunta_label.setStyleSheet("color: #1e293b;")
         content.addWidget(pregunta_label)
 
@@ -1023,17 +877,19 @@ class ModuleDialog(QDialog):
         layout.setSpacing(20)
         layout.setContentsMargins(30, 30, 30, 30)
 
-        # Título del diálogo
-        title = QLabel("Editar Módulo" if self.modulo_data else "Nuevo Módulo")
-        title.setFont(QFont("Segoe UI", 24, QFont.Bold))
-        title.setStyleSheet("color: #1e293b; margin-bottom: 10px;")
-        layout.addWidget(title)
+        # Título
+        title_label = QLabel("📝 " + ("Editar Módulo" if self.modulo_data else "Nuevo Módulo"))
+        title_label.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title_label.setStyleSheet("color: #1e293b; margin-bottom: 10px;")
+        layout.addWidget(title_label)
 
-        # --- FORMULARIO PRINCIPAL ---
-        form_widget = QWidget()
-        form_layout = QFormLayout(form_widget)
-        form_layout.setSpacing(15)
-        form_layout.setLabelAlignment(Qt.AlignRight)
+        # Formulario
+        form_frame = QFrame()
+        form_frame.setStyleSheet("background-color: white; border-radius: 12px; border: 1px solid #e2e8f0;")
+        form_layout = QFormLayout(form_frame)
+        form_layout.setContentsMargins(24, 24, 24, 24)
+        form_layout.setSpacing(16)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         # Campo: Título
         self.titulo_input = QLineEdit()
@@ -1048,11 +904,11 @@ class ModuleDialog(QDialog):
         )
         form_layout.addRow("Tipo:", self.tipo_combo)
 
-        layout.addWidget(form_widget)
+        layout.addWidget(form_frame)
 
         # --- CAMPO: DESCRIPCIÓN (con editor enriquecido) ---
         desc_label = QLabel("Descripción:")
-        desc_label.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        desc_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         desc_label.setStyleSheet("margin-top: 10px;")
         layout.addWidget(desc_label)
 
@@ -1087,24 +943,25 @@ class ModuleDialog(QDialog):
         layout.addLayout(bottom_layout)
 
         # --- BOTONES DE ACCIÓN ---
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Guardar Módulo")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
-
-        buttons.button(QDialogButtonBox.Ok).setStyleSheet(
-            StyleHelper.button_primary() + "padding: 10px 30px;"
-        )
-        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(
-            StyleHelper.button_danger() + "padding: 10px 30px;"
-        )
-
         # Deshabilitar botón OK inicialmente
-        self.ok_button = buttons.button(QDialogButtonBox.Ok)
-        self.ok_button.setEnabled(False)
-
+        # Botones
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+        # Estilizar botones
+        self.ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.ok_button.setText("Guardar Módulo")
+        self.ok_button.setStyleSheet(
+            StyleHelper.button_primary() + "padding: 10px 30px;"
+        )
+
+        cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel_button.setText("Cancelar")
+        cancel_button.setStyleSheet(
+            StyleHelper.button_danger() + "padding: 10px 30px;"
+        )
 
         # Validar campos inicialmente
         self._validar_campos()
@@ -1131,7 +988,7 @@ class ModuleDialog(QDialog):
         )
 
         label = QLabel(title)
-        label.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
 
         layout = QVBoxLayout(group)
         layout.addWidget(label)
@@ -1259,30 +1116,54 @@ class ModuleDetailView(QWidget):
         self._setup_ui()
 
         # Conectar señales del API client para actualización en tiempo real
-        self.api_client.evaluaciones_changed.connect(self._on_evaluaciones_changed)
         self.api_client.data_changed.connect(self._on_data_changed)
 
-        QTimer.singleShot(50, self._load_all_data)
+        # Cargar solo la pestaña inicial (Lecciones)
+        QTimer.singleShot(50, self._on_tab_changed)
+        
+        # Conectar cambio de pestaña para carga diferida
+        self.tabs.currentChanged.connect(self._on_tab_changed)
 
     # ============================================================================
     # MANEJADORES DE SEÑALES
     # ============================================================================
 
-    def _on_evaluaciones_changed(self) -> None:
-        """Cuando cambian las evaluaciones, recargar automáticamente"""
-        logger.debug(
-            f"Signal evaluaciones_changed recibida para módulo {self.modulo.get('id')}"
-        )
-        QTimer.singleShot(300, self._recargar_evaluacion_con_indicador)
-
     def _on_data_changed(self, data_type: str) -> None:
         """Cuando cambia cualquier dato, verificar si es relevante"""
         if data_type == "evaluaciones":
             logger.debug("Signal data_changed(evaluaciones) recibida")
+            # Recargar evaluación y actualizar estadísticas
             QTimer.singleShot(300, self._recargar_evaluacion_con_indicador)
+            QTimer.singleShot(500, self._update_stats)
+            
         elif data_type == "lecciones":
             logger.debug("Signal data_changed(lecciones) recibida")
+            # Recargar lecciones y actualizar estadísticas
             QTimer.singleShot(300, self._recargar_lecciones_con_indicador)
+            QTimer.singleShot(500, self._update_stats)
+            
+        elif data_type == "ejercicios":
+            logger.debug("Signal data_changed(ejercicios) recibida")
+            # Los ejercicios suelen afectar a las lecciones o estadísticas del módulo
+            # Forzamos una actualización de estadísticas para reflejar nuevos contadores
+            QTimer.singleShot(300, self._update_stats)
+            # Si estamos en la pestaña de lecciones, recargamos para asegurar que se vean contadores actualizados
+            if self.tabs.currentIndex() == 0:
+                QTimer.singleShot(500, self._recargar_lecciones_con_indicador)
+
+    def _on_tab_changed(self, index: int = 0) -> None:
+        """Carga los datos de la pestaña seleccionada si aún no han sido cargados"""
+        if index == 0:  # Lecciones
+            if not getattr(self, "_lessons_loaded", False):
+                self._recargar_lecciones_con_indicador()
+                self._lessons_loaded = True
+        elif index == 1:  # Evaluación
+            if not getattr(self, "_eval_loaded", False):
+                self._recargar_evaluacion_con_indicador()
+                self._eval_loaded = True
+        elif index == 2:  # Información
+            # La pestaña de información usa datos estáticos del módulo ya cargados
+            pass
 
     # ============================================================================
     # SETUP DE UI
@@ -1466,7 +1347,7 @@ class ModuleDetailView(QWidget):
 
         titulo = self.modulo.get("titulo", "Módulo")
         title_label = QLabel(titulo)
-        title_label.setFont(QFont("Segoe UI", 32, QFont.Bold))
+        title_label.setFont(QFont("Segoe UI", 32, QFont.Weight.Bold))
         title_label.setStyleSheet(
             """
         color: white;
@@ -1484,9 +1365,9 @@ class ModuleDetailView(QWidget):
         # Badge de estado clickeable
         estado = self.modulo.get("estado", "inactivo")
         self.estado_badge = QLabel(estado.upper())
-        self.estado_badge.setCursor(Qt.PointingHandCursor)
+        self.estado_badge.setCursor(Qt.CursorShape.PointingHandCursor)
         self.estado_badge.setFixedHeight(40)
-        self.estado_badge.setAlignment(Qt.AlignCenter)
+        self.estado_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.estado_badge.setToolTip("Haz clic para cambiar el estado del módulo")
         self._actualizar_estado_badge(estado)
 
@@ -1514,7 +1395,7 @@ class ModuleDetailView(QWidget):
         header = QHBoxLayout()
 
         lessons_title = QLabel("Lecciones del Módulo")
-        lessons_title.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        lessons_title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
         lessons_title.setStyleSheet("color: #1e293b;")
         header.addWidget(lessons_title)
         header.addStretch()
@@ -1531,13 +1412,13 @@ class ModuleDetailView(QWidget):
         self.lessons_container_layout = QVBoxLayout(self.lessons_container)
         self.lessons_container_layout.setSpacing(12)
         self.lessons_container_layout.setContentsMargins(0, 0, 0, 0)
-        self.lessons_container_layout.setAlignment(Qt.AlignTop)
+        self.lessons_container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.lessons_placeholder = QLabel("Cargando lecciones...")
         self.lessons_placeholder.setStyleSheet(
             "color: #94a3b8; padding: 60px; font-size: 14px;"
         )
-        self.lessons_placeholder.setAlignment(Qt.AlignCenter)
+        self.lessons_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lessons_container_layout.addWidget(self.lessons_placeholder)
 
         layout.addWidget(self.lessons_container)
@@ -1560,7 +1441,7 @@ class ModuleDetailView(QWidget):
         header = QHBoxLayout()
 
         eval_title = QLabel("Evaluación del Módulo")
-        eval_title.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        eval_title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
         eval_title.setStyleSheet("color: #1e293b;")
         header.addWidget(eval_title)
         header.addStretch()
@@ -1582,7 +1463,7 @@ class ModuleDetailView(QWidget):
         self.eval_placeholder.setStyleSheet(
             "color: #94a3b8; padding: 60px; font-size: 14px;"
         )
-        self.eval_placeholder.setAlignment(Qt.AlignCenter)
+        self.eval_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.eval_container_layout.addWidget(self.eval_placeholder)
 
         layout.addWidget(self.eval_container)
@@ -1623,7 +1504,7 @@ class ModuleDetailView(QWidget):
         desc_layout = QVBoxLayout(desc_group)
 
         desc_title = QLabel("Descripción")
-        desc_title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        desc_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         desc_title.setStyleSheet("color: #1e293b; margin-bottom: 10px;")
         desc_layout.addWidget(desc_title)
 
@@ -1647,7 +1528,7 @@ class ModuleDetailView(QWidget):
         meta_layout = QVBoxLayout(meta_group)
 
         meta_title = QLabel("Información adicional")
-        meta_title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        meta_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         meta_title.setStyleSheet("color: #1e293b; margin-bottom: 10px;")
         meta_layout.addWidget(meta_title)
 
@@ -1734,11 +1615,11 @@ class ModuleDetailView(QWidget):
             self,
             "Cambiar estado",
             f"¿Cambiar estado del módulo de '{estado_actual}' a '{nuevo_estado}'?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             self._cambiar_estado_modulo(nuevo_estado)
         else:
             self._cambiando_estado = False
@@ -1750,7 +1631,7 @@ class ModuleDetailView(QWidget):
         Args:
             nuevo_estado: Nuevo estado a establecer
         """
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
         try:
             result = self.api_client.update_modulo(
@@ -1762,9 +1643,6 @@ class ModuleDetailView(QWidget):
                 self._actualizar_estado_badge(nuevo_estado)
 
                 QApplication.restoreOverrideCursor()
-                QMessageBox.information(
-                    self, "Éxito", f"Estado cambiado a '{nuevo_estado}' correctamente"
-                )
 
                 self.module_updated.emit()
             else:
@@ -1786,12 +1664,14 @@ class ModuleDetailView(QWidget):
 
     def _recargar_evaluacion_con_indicador(self) -> None:
         """Recarga la evaluación mostrando un indicador visual"""
-        # Limpiar indicador anterior si existe
-        if self.loading_eval_label and not self.loading_eval_label.isHidden():
-            self.loading_eval_label.deleteLater()
+        if getattr(self, "loading_eval_label", None) is not None:
+            try:
+                self.loading_eval_label.deleteLater()
+            except:
+                pass
 
         self.loading_eval_label = QLabel("Cargando evaluación...")
-        self.loading_eval_label.setAlignment(Qt.AlignCenter)
+        self.loading_eval_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_eval_label.setStyleSheet(
             """
             QLabel {
@@ -1816,13 +1696,23 @@ class ModuleDetailView(QWidget):
         """Carga la evaluación forzando refresco"""
         self._load_evaluacion()
 
+    def _load_all_data(self) -> None:
+        """Carga todos los datos del módulo (Mantenido para compatibilidad si se requiere recarga total)"""
+        self._recargar_lecciones_con_indicador()
+        self._recargar_evaluacion_con_indicador()
+        self._lessons_loaded = True
+        self._eval_loaded = True
+
     def _recargar_lecciones_con_indicador(self) -> None:
         """Recarga las lecciones mostrando un indicador visual"""
-        if self.loading_lessons_label and not self.loading_lessons_label.isHidden():
-            self.loading_lessons_label.deleteLater()
+        if getattr(self, "loading_lessons_label", None) is not None:
+            try:
+                self.loading_lessons_label.deleteLater()
+            except:
+                pass
 
         self.loading_lessons_label = QLabel("Cargando lecciones...")
-        self.loading_lessons_label.setAlignment(Qt.AlignCenter)
+        self.loading_lessons_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_lessons_label.setStyleSheet(
             """
             QLabel {
@@ -1839,8 +1729,6 @@ class ModuleDetailView(QWidget):
         self._clear_layout(self.lessons_container_layout)
         self.lessons_container_layout.addWidget(self.loading_lessons_label)
         QApplication.processEvents()
-        # Llamar directamente a _load_lecciones sin timer adicional
-        self._load_lecciones()
 
         QTimer.singleShot(300, self._do_load_lecciones)
 
@@ -1848,15 +1736,22 @@ class ModuleDetailView(QWidget):
         """Carga las lecciones forzando refresco"""
         self._load_lecciones()
 
-    def _load_all_data(self) -> None:
-        """Carga todos los datos del módulo"""
-        if self._loaded:
+    def preload_cache(self):
+        """Pre-cargar datos críticos de forma paralela"""
+        if self.preloaded:
             return
 
-        self._recargar_lecciones_con_indicador()
-        self._recargar_evaluacion_con_indicador()
+        # Dashboard e información básica primero
+        endpoints = [
+            ("/admin/dashboard", "dashboard"),
+            ("/admin/modulos", "modulos"),
+            ("/admin/usuarios", "usuarios")
+        ]
+        
+        for endpoint, c_type in endpoints:
+            self.get_async(endpoint, lambda x: None, cache_type=c_type)
 
-        self._loaded = True
+        self.preloaded = True
 
     def _update_stats(self) -> None:
         """Actualiza las estadísticas del módulo"""
@@ -1916,7 +1811,7 @@ class ModuleDetailView(QWidget):
                 empty_label.setStyleSheet(
                     "color: #94a3b8; padding: 60px; font-size: 14px;"
                 )
-                empty_label.setAlignment(Qt.AlignCenter)
+                empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.lessons_container_layout.addWidget(empty_label)
             else:
                 lecciones_ordenadas = sorted(
@@ -1931,7 +1826,7 @@ class ModuleDetailView(QWidget):
         else:
             error_label = QLabel(f"Error al cargar lecciones: {result.get('error')}")
             error_label.setStyleSheet("color: #ef4444; padding: 40px; font-size: 14px;")
-            error_label.setAlignment(Qt.AlignCenter)
+            error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.lessons_container_layout.addWidget(error_label)
             self.lecciones = []
 
@@ -1981,7 +1876,7 @@ class ModuleDetailView(QWidget):
             preguntas = eval_data.get("preguntas", [])
             if preguntas:
                 preguntas_title = QLabel(f"Preguntas ({len(preguntas)})")
-                preguntas_title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+                preguntas_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
                 preguntas_title.setStyleSheet(
                     "color: #1e293b; margin-top: 20px; margin-bottom: 10px;"
                 )
@@ -1997,7 +1892,7 @@ class ModuleDetailView(QWidget):
                 no_preguntas_label.setStyleSheet(
                     "color: #94a3b8; padding: 40px; font-size: 14px;"
                 )
-                no_preguntas_label.setAlignment(Qt.AlignCenter)
+                no_preguntas_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.eval_container_layout.addWidget(no_preguntas_label)
 
         else:
@@ -2024,14 +1919,14 @@ class ModuleDetailView(QWidget):
 
             empty_layout = QVBoxLayout(empty_frame)
             empty_layout.setSpacing(20)
-            empty_layout.setAlignment(Qt.AlignCenter)
+            empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             icon_label = QLabel("📝")
             icon_label.setStyleSheet("font-size: 48px;")
             empty_layout.addWidget(icon_label)
 
             text_label = QLabel("No hay evaluación configurada")
-            text_label.setFont(QFont("Segoe UI", 16, QFont.Bold))
+            text_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
             text_label.setStyleSheet("color: #1e293b;")
             empty_layout.addWidget(text_label)
 
@@ -2064,10 +1959,10 @@ class ModuleDetailView(QWidget):
             self,
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
                 if "titulo" not in data or not data["titulo"]:
@@ -2079,9 +1974,6 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Evaluación configurada correctamente"
-                    )
 
                     self._recargar_evaluacion_con_indicador()
                     self.module_updated.emit()
@@ -2108,14 +2000,14 @@ class ModuleDetailView(QWidget):
             )
             return
 
-        dialog = QuickQuestionDialog(
-            self.api_client, self.evaluacion_actual.get("id"), None, self
+        dialog = ExerciseDialog(
+            self.api_client, self.modulo["id"], self.evaluacion_actual.get("id"), None, True, self
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
                 result = self.api_client.create_pregunta(
@@ -2124,9 +2016,6 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Pregunta creada correctamente"
-                    )
 
                     self._recargar_evaluacion_con_indicador()
                 else:
@@ -2151,12 +2040,12 @@ class ModuleDetailView(QWidget):
             f"¿Estás seguro de eliminar esta pregunta?\n\n"
             f"Pregunta: {pregunta.get('pregunta', '')[:50]}...\n\n"
             f"Esta acción no se puede deshacer.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+        if reply == QMessageBox.StandardButton.Yes:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
                 result = self.api_client.delete_pregunta(
@@ -2167,9 +2056,6 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Pregunta eliminada correctamente"
-                    )
 
                     self._recargar_evaluacion_con_indicador()
                 else:
@@ -2188,14 +2074,14 @@ class ModuleDetailView(QWidget):
         Args:
             pregunta: Datos de la pregunta a editar
         """
-        dialog = QuickQuestionDialog(
-            self.api_client, self.evaluacion_actual.get("id"), pregunta, self
+        dialog = ExerciseDialog(
+            self.api_client, self.modulo["id"], self.evaluacion_actual.get("id"), pregunta, True, self
         )
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
                 result = self.api_client.update_pregunta(
@@ -2207,9 +2093,6 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Pregunta actualizada correctamente"
-                    )
 
                     self._recargar_evaluacion_con_indicador()
                 else:
@@ -2229,7 +2112,7 @@ class ModuleDetailView(QWidget):
             pregunta_id: ID de la pregunta
             opciones: Lista de opciones actualizadas
         """
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
         try:
             result = self.api_client.update_pregunta_opciones(
@@ -2241,9 +2124,6 @@ class ModuleDetailView(QWidget):
 
             if result["success"]:
                 QApplication.restoreOverrideCursor()
-                QMessageBox.information(
-                    self, "Éxito", "Opciones actualizadas correctamente"
-                )
                 self._recargar_evaluacion_con_indicador()
             else:
                 QApplication.restoreOverrideCursor()
@@ -2264,22 +2144,28 @@ class ModuleDetailView(QWidget):
         """Crea una nueva lección"""
         dialog = LessonDialog(self.api_client, self.modulo["id"], parent=self)
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             if data is None:
                 return
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
                 result = self.api_client.create_leccion(self.modulo["id"], data)
 
                 if result["success"]:
-                    QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Lección creada correctamente"
-                    )
+                    # Guardar ejercicios pendientes si existen (Cascading Save)
+                    nueva_leccion = result.get("data", {})
+                    leccion_id = nueva_leccion.get("id")
+                    pending_exercises = dialog.get_pending_exercises()
 
+                    if leccion_id and pending_exercises:
+                        logger.debug(f"Guardando {len(pending_exercises)} ejercicios pendientes para lección {leccion_id}")
+                        for exercise_data in pending_exercises:
+                            self.api_client.create_ejercicio(self.modulo["id"], leccion_id, exercise_data)
+
+                    QApplication.restoreOverrideCursor()
                     self._recargar_lecciones_con_indicador()
                     QTimer.singleShot(500, self._update_stats)
                     self.module_updated.emit()
@@ -2304,12 +2190,12 @@ class ModuleDetailView(QWidget):
         """
         dialog = LessonDialog(self.api_client, self.modulo["id"], leccion, self)
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             if data is None:
                 return
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
                 result = self.api_client.update_leccion(
@@ -2318,9 +2204,6 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Lección actualizada correctamente"
-                    )
 
                     self._recargar_lecciones_con_indicador()
                     QTimer.singleShot(500, self._update_stats)
@@ -2350,12 +2233,12 @@ class ModuleDetailView(QWidget):
             f"¿Estás seguro de eliminar la lección '{leccion.get('titulo')}'?\n\n"
             f"Esta acción eliminará TODOS los ejercicios asociados.\n"
             f"No se puede deshacer.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+        if reply == QMessageBox.StandardButton.Yes:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
                 result = self.api_client.delete_leccion(
@@ -2364,9 +2247,6 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Lección eliminada correctamente"
-                    )
 
                     self.lecciones = []
                     self._recargar_lecciones_con_indicador()
@@ -2388,22 +2268,26 @@ class ModuleDetailView(QWidget):
     # ============================================================================
 
     def _editar_modulo(self) -> None:
-        """Edita el módulo actual"""
+        """Edita el módulo actual con desplazamiento de orden"""
         dialog = ModuleDialog(self.api_client, self.modulo, self)
 
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            if data is None:
+                return
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
+                # 1. Desplazamiento de orden si es necesario
+                nuevo_orden = data.get("orden_global")
+                self._desplazar_orden_modulos(nuevo_orden, self.modulo.get("id"))
+
+                # 2. Actualizar el módulo
                 result = self.api_client.update_modulo(self.modulo["id"], data)
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Módulo actualizado correctamente"
-                    )
 
                     self.modulo.update(data)
                     self.module_updated.emit()
@@ -2428,21 +2312,18 @@ class ModuleDetailView(QWidget):
             f"¿Estás seguro de eliminar el módulo '{self.modulo.get('titulo')}'?\n\n"
             f"Esta acción eliminará TODAS las lecciones, ejercicios y evaluaciones asociadas.\n"
             f"NO SE PUEDE DESHACER.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
-        if reply == QMessageBox.Yes:
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+        if reply == QMessageBox.StandardButton.Yes:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
                 result = self.api_client.delete_modulo(self.modulo["id"])
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Módulo eliminado correctamente"
-                    )
 
                     self.module_updated.emit()
                 else:
@@ -2457,9 +2338,40 @@ class ModuleDetailView(QWidget):
                 QApplication.restoreOverrideCursor()
                 QMessageBox.critical(self, "Error inesperado", f"Error: {str(e)}")
 
-    # ============================================================================
-    # MÉTODOS UTILITARIOS
-    # ============================================================================
+    def _desplazar_orden_modulos(self, orden_objetivo: int, modulo_id_ignorar: int = None) -> None:
+        """
+        Desplaza el orden de los módulos existentes para evitar duplicados.
+        Si un módulo ya tiene el orden_objetivo, él y todos los siguientes se incrementan en 1.
+        """
+        logger.debug(f"Verificando desplazamiento de orden para {orden_objetivo}")
+
+        # Obtener lista actualizada de módulos
+        result = self.api_client.get_modulos(force_refresh=True)
+        if not result["success"]:
+            return
+
+        modulos = result.get("data", [])
+        if isinstance(modulos, dict): modulos = modulos.get("data", [])
+
+        # Filtrar módulos que deben ser desplazados
+        a_desplazar = [
+            m for m in modulos
+            if m.get("orden_global") >= orden_objetivo
+            and m.get("id") != modulo_id_ignorar
+        ]
+
+        if not a_desplazar:
+            return
+
+        # Ordenar de mayor a menor para evitar colisiones temporales si hay restricciones
+        a_desplazar.sort(key=lambda x: x.get("orden_global", 0), reverse=True)
+
+        logger.info(f"Desplazando {len(a_desplazar)} módulos para abrir hueco en orden {orden_objetivo}")
+        for mod in a_desplazar:
+            nuevo_orden = mod.get("orden_global") + 1
+            mod_id = mod.get("id")
+            # Actualización simple solo del orden
+            self.api_client.update_modulo(mod_id, {"orden_global": nuevo_orden})
 
     def _clear_layout(self, layout) -> None:
         """
@@ -2519,12 +2431,16 @@ class ModulesView(QWidget):
         self.api_client = api_client
         self.modulos = []
         self.modulo_actual = None
-        self.current_detail_view = None
-        self.placeholder = None
+        self.modulos_detail = {}  # Cache de detalles cargados
+        self.placeholder = None  # Inicializar placeholder
+
+        # Timer para debouncing de búsqueda
+        self.search_timer = QTimer()
+        self.search_timer.setSingleShot(True)
+        self.search_timer.timeout.connect(self._filtrar_modulos_real)
 
         self._setup_ui()
-
-        QTimer.singleShot(0, self._load_modulos)
+        self._load_modulos()
 
     def _setup_ui(self) -> None:
         """Configura la interfaz de usuario principal"""
@@ -2536,9 +2452,10 @@ class ModulesView(QWidget):
         header = self._create_header()
         main_layout.addWidget(header)
 
-        # --- SPLITTER PRINCIPAL ---
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.setStyleSheet(
+        # SPLITTER PRINCIPAL (Izquierda: Lista, Derecha: Detalle)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setHandleWidth(1)
+        self.splitter.setStyleSheet(
             """
             QSplitter::handle {
                 background-color: #e9ecef;
@@ -2549,7 +2466,7 @@ class ModulesView(QWidget):
 
         # Panel izquierdo - Lista de módulos
         left_panel = self._create_left_panel()
-        splitter.addWidget(left_panel)
+        self.splitter.addWidget(left_panel)
 
         # Panel derecho
         self.right_panel = QWidget()
@@ -2558,10 +2475,10 @@ class ModulesView(QWidget):
         self.right_layout.setContentsMargins(0, 0, 0, 0)
 
         self._create_placeholder()
-        splitter.addWidget(self.right_panel)
+        self.splitter.addWidget(self.right_panel)
 
-        splitter.setSizes([450, 850])
-        main_layout.addWidget(splitter)
+        self.splitter.setSizes([350, 950])
+        main_layout.addWidget(self.splitter)
 
     def _create_header(self) -> QFrame:
         """
@@ -2584,51 +2501,41 @@ class ModulesView(QWidget):
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(40, 0, 40, 0)
 
+        # Botón de toggle sidebar (Mejorado con texto)
+        self.toggle_sidebar_btn = QPushButton(" ☰  Ocultar Lista")
+        self.toggle_sidebar_btn.setFixedWidth(140)
+        self.toggle_sidebar_btn.setFixedHeight(45)
+        self.toggle_sidebar_btn.setToolTip("Ocultar/Mostrar lista de módulos")
+        self.toggle_sidebar_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.toggle_sidebar_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #f8fafc;
+                color: #475569;
+                border: 1px solid #e2e8f0;
+                border-radius: 22px;
+                font-size: 13px;
+                font-weight: 600;
+                padding-left: 5px;
+            }
+            QPushButton:hover {
+                background-color: #f1f5f9;
+                color: #4361ee;
+                border: 1px solid #4361ee;
+            }
+        """
+        )
+        self.toggle_sidebar_btn.clicked.connect(self._toggle_sidebar)
+        header_layout.addWidget(self.toggle_sidebar_btn)
+
         # Título
         title = QLabel("Gestión de Módulos")
-        title.setFont(QFont("Segoe UI", 24, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
         title.setStyleSheet("color: #1e293b;")
         header_layout.addWidget(title)
         header_layout.addStretch()
 
-        # Buscador
-        search_container = QFrame()
-        search_container.setFixedSize(350, 45)
-        search_container.setStyleSheet(
-            """
-            QFrame {
-                background-color: #f8fafc;
-                border: 1px solid #e9ecef;
-                border-radius: 22px;
-            }
-        """
-        )
-
-        search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(16, 0, 16, 0)
-
-        search_icon = QLabel("🔍")
-        search_icon.setStyleSheet("font-size: 16px;")
-        search_layout.addWidget(search_icon)
-
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Buscar módulos por título...")
-        self.search_input.setStyleSheet(
-            """
-            QLineEdit {
-                border: none;
-                background-color: transparent;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                outline: none;
-            }
-        """
-        )
-        self.search_input.textChanged.connect(self._filtrar_modulos)
-        search_layout.addWidget(self.search_input)
-
-        header_layout.addWidget(search_container)
+        header_layout.addStretch()
 
         # Botón refrescar
         refresh_btn = QPushButton("🔄")
@@ -2670,8 +2577,8 @@ class ModulesView(QWidget):
             QWidget: Panel izquierdo configurado
         """
         left_panel = QWidget()
-        left_panel.setMinimumWidth(400)
-        left_panel.setMaximumWidth(550)
+        left_panel.setMinimumWidth(320)
+        left_panel.setMaximumWidth(450)
         left_panel.setStyleSheet("background-color: #f8fafc;")
 
         left_layout = QVBoxLayout(left_panel)
@@ -2694,7 +2601,7 @@ class ModulesView(QWidget):
         left_header_layout.setContentsMargins(25, 0, 25, 0)
 
         modules_count = QLabel("Módulos")
-        modules_count.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        modules_count.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
         modules_count.setStyleSheet("color: #1e293b;")
         left_header_layout.addWidget(modules_count)
         left_header_layout.addStretch()
@@ -2714,10 +2621,54 @@ class ModulesView(QWidget):
 
         left_layout.addWidget(left_header)
 
+        # --- BUSCADOR (Movido al sidebar) ---
+        search_box = QWidget()
+        search_box.setFixedHeight(70)
+        search_box.setStyleSheet("background-color: white; border-bottom: 1px solid #f1f5f9;")
+        search_box_layout = QVBoxLayout(search_box)
+        search_box_layout.setContentsMargins(20, 10, 20, 15)
+
+        search_container = QFrame()
+        search_container.setFixedHeight(45)
+        search_container.setStyleSheet(
+            """
+            QFrame {
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 22px;
+            }
+        """
+        )
+        search_layout = QHBoxLayout(search_container)
+        search_layout.setContentsMargins(15, 0, 15, 0)
+
+        search_icon = QLabel("🔍")
+        search_icon.setStyleSheet("color: #94a3b8; font-size: 14px;")
+        search_layout.addWidget(search_icon)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Buscar módulos...")
+        self.search_input.setStyleSheet(
+            """
+            QLineEdit {
+                border: none;
+                background-color: transparent;
+                color: #1e293b;
+                font-size: 13px;
+            }
+        """
+        )
+        self.search_input.textChanged.connect(self._iniciar_busqueda)
+        search_layout.addWidget(self.search_input)
+        search_box_layout.addWidget(search_container)
+        
+        left_layout.addWidget(search_box)
+
         # Lista scrollable de módulos
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet(
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setStyleSheet(
             """
             QScrollArea {
                 border: none;
@@ -2730,17 +2681,17 @@ class ModulesView(QWidget):
         self.modulos_layout = QVBoxLayout(self.modulos_container)
         self.modulos_layout.setSpacing(12)
         self.modulos_layout.setContentsMargins(20, 20, 20, 20)
-        self.modulos_layout.setAlignment(Qt.AlignTop)
+        self.modulos_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.loading_label = QLabel("Cargando módulos...")
-        self.loading_label.setAlignment(Qt.AlignCenter)
+        self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_label.setStyleSheet(
             "color: #94a3b8; padding: 60px; font-size: 14px;"
         )
         self.modulos_layout.addWidget(self.loading_label)
 
-        scroll.setWidget(self.modulos_container)
-        left_layout.addWidget(scroll)
+        self.scroll.setWidget(self.modulos_container)
+        left_layout.addWidget(self.scroll)
 
         return left_panel
 
@@ -2758,16 +2709,18 @@ class ModulesView(QWidget):
 
         placeholder_layout = QVBoxLayout(self.placeholder)
         placeholder_layout.setSpacing(30)
-        placeholder_layout.setAlignment(Qt.AlignCenter)
+        placeholder_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        icon_label = QLabel("📚")
-        icon_label.setStyleSheet("font-size: 120px; color: #cbd5e1;")
-        placeholder_layout.addWidget(icon_label)
+        empty_icon = QLabel("📚")
+        empty_icon.setFont(QFont("Segoe UI", 64))
+        empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder_layout.addWidget(empty_icon)
 
-        text_label = QLabel("Selecciona un módulo")
-        text_label.setFont(QFont("Segoe UI", 24, QFont.Bold))
-        text_label.setStyleSheet("color: #94a3b8;")
-        placeholder_layout.addWidget(text_label)
+        empty_text = QLabel("Selecciona un módulo para ver sus detalles\no crea uno nuevo para empezar.")
+        empty_text.setFont(QFont("Segoe UI", 14))
+        empty_text.setStyleSheet("color: #94a3b8;")
+        empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder_layout.addWidget(empty_text)
 
         hint_label = QLabel(
             "Haz clic en cualquier módulo de la lista para ver sus detalles"
@@ -2826,7 +2779,7 @@ class ModulesView(QWidget):
         if force_refresh:
             self.api_client.invalidate_cache_type("modulos")
 
-        result = self.api_client.get_modulos(force_refresh=force_refresh)
+        result = self.api_client.get_modulos(force_refresh=force_refresh, summary=True)
 
         if result["success"]:
             data = result.get("data", [])
@@ -2848,22 +2801,19 @@ class ModulesView(QWidget):
         else:
             error_label = QLabel(f"Error: {result.get('error')}")
             error_label.setStyleSheet("color: #ef4444; padding: 40px; font-size: 14px;")
-            error_label.setAlignment(Qt.AlignCenter)
+            error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.modulos_layout.addWidget(error_label)
 
     def _mostrar_modulos(self, modulos: list) -> None:
         """
-        Muestra los módulos en el panel izquierdo.
-
-        Args:
-            modulos: Lista de módulos a mostrar
+        Muestra los módulos en el panel izquierdo usando renderizado por lotes (Chunked Rendering).
         """
         self._clear_layout(self.modulos_layout)
 
         if not modulos:
             empty_label = QLabel("No hay módulos creados")
             empty_label.setStyleSheet("color: #94a3b8; padding: 60px; font-size: 14px;")
-            empty_label.setAlignment(Qt.AlignCenter)
+            empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.modulos_layout.addWidget(empty_label)
 
             create_btn = QPushButton("Crear Primer Módulo")
@@ -2871,25 +2821,59 @@ class ModulesView(QWidget):
             create_btn.setStyleSheet(StyleHelper.button_primary())
             create_btn.clicked.connect(self._nuevo_modulo)
             self.modulos_layout.addWidget(create_btn)
-        else:
-            modulos_ordenados = sorted(
-                modulos, key=lambda x: x.get("orden_global", 999)
-            )
-            for modulo in modulos_ordenados:
-                card = ModernCard(modulo)
-                card.clicked.connect(self._mostrar_detalle_modulo)
-                self.modulos_layout.addWidget(card)
+            self.modulos_layout.addStretch()
+            return
 
-        self.modulos_layout.addStretch()
+        self.modulos_ordenados = sorted(
+            modulos, key=lambda x: x.get("orden_global", 999)
+        )
+        
+        # Iniciar renderizado por lotes
+        self.current_batch_index = 0
+        self.batch_size = 5  # Procesar de 5 en 5 para máxima fluidez
+        self._render_next_batch()
+
+    def _render_next_batch(self):
+        """Renderiza el siguiente lote de módulos para no congelar la UI"""
+        end_index = min(self.current_batch_index + self.batch_size, len(self.modulos_ordenados))
+        
+        for i in range(self.current_batch_index, end_index):
+            modulo = self.modulos_ordenados[i]
+            card = ModernCard(modulo)
+            card.clicked.connect(self._mostrar_detalle_modulo)
+            
+            # Insertar antes del stretch si existe, o al final
+            self.modulos_layout.insertWidget(self.modulos_layout.count() - 1 if self.modulos_layout.count() > 0 else 0, card)
+
+        self.current_batch_index = end_index
+
+        if self.current_batch_index < len(self.modulos_ordenados):
+            # Programar el siguiente lote de forma casi inmediata
+            QTimer.singleShot(10, self._render_next_batch)
+        else:
+            # Finalizar con stretch si no está
+            if not any(isinstance(self.modulos_layout.itemAt(i), QSpacerItem) for i in range(self.modulos_layout.count())):
+                self.modulos_layout.addStretch()
+
+    def _iniciar_busqueda(self) -> None:
+        """Inicia el timer de debouncing para la búsqueda"""
+        self.search_timer.start(300)  # Esperar 300ms de inactividad
 
     def _filtrar_modulos(self) -> None:
-        """Filtra los módulos según el texto de búsqueda"""
-        texto = self.search_input.text().lower()
-        if not texto:
+        """Alias para mantener compatibilidad si se llama directamente"""
+        self._filtrar_modulos_real()
+
+    def _filtrar_modulos_real(self) -> None:
+        """Filtra los módulos según el texto de búsqueda (ejecución real)"""
+        text = self.search_input.text().lower().strip()
+
+        if not text:
             self._mostrar_modulos(self.modulos)
             return
 
-        filtrados = [m for m in self.modulos if texto in m.get("titulo", "").lower()]
+        filtrados = [
+            m for m in self.modulos if text in m.get("title", "").lower() or text in m.get("titulo", "").lower()
+        ]
         self._mostrar_modulos(filtrados)
 
     def _mostrar_detalle_modulo(self, modulo: dict) -> None:
@@ -2918,6 +2902,22 @@ class ModulesView(QWidget):
         """
         self.lesson_selected.emit(modulo, leccion)
 
+    def _toggle_sidebar(self) -> None:
+        """Muestra u oculta la barra lateral (panel izquierdo del splitter)"""
+        left_panel = self.splitter.widget(0)
+        if left_panel.isVisible():
+            left_panel.hide()
+            self.toggle_sidebar_btn.setText(" ☰  Mostrar Lista")
+            self.toggle_sidebar_btn.setStyleSheet(
+                self.toggle_sidebar_btn.styleSheet().replace("#f8fafc", "#4361ee").replace("#475569", "white")
+            )
+        else:
+            left_panel.show()
+            self.toggle_sidebar_btn.setText(" ☰  Ocultar Lista")
+            self.toggle_sidebar_btn.setStyleSheet(
+                self.toggle_sidebar_btn.styleSheet().replace("#4361ee", "#f8fafc").replace("white", "#475569")
+            )
+
     def _on_module_updated(self) -> None:
         """Manejador cuando se actualiza un módulo"""
         self.api_client.invalidate_cache_type("modulos")
@@ -2941,32 +2941,29 @@ class ModulesView(QWidget):
 
     def _refrescar_modulos(self) -> None:
         """Refresca manualmente la lista de módulos"""
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         self._load_modulos(force_refresh=True)
         QApplication.restoreOverrideCursor()
 
-        QMessageBox.information(
-            self, "Actualizado", "Lista de módulos actualizada correctamente"
-        )
-
     def _nuevo_modulo(self) -> None:
-        """Crea un nuevo módulo"""
+        """Crea un nuevo módulo con desplazamiento de orden"""
         dialog = ModuleDialog(self.api_client, parent=self)
-
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             if data is None:
                 return
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
+                # 1. Desplazamiento de orden si es necesario
+                nuevo_orden = data.get("orden_global")
+                self._desplazar_orden_modulos(nuevo_orden)
+
+                # 2. Crear el módulo
                 result = self.api_client.create_modulo(data)
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-                    QMessageBox.information(
-                        self, "Éxito", "Módulo creado correctamente"
-                    )
 
                     self._load_modulos(force_refresh=True)
 
@@ -2991,6 +2988,24 @@ class ModulesView(QWidget):
             except Exception as e:
                 QApplication.restoreOverrideCursor()
                 QMessageBox.critical(self, "Error inesperado", f"Error:\n{str(e)}")
+
+    def _desplazar_orden_modulos(self, orden_objetivo: int, modulo_id_ignorar: int = None) -> None:
+        """Reutiliza la lógica de desplazamiento en la vista principal"""
+        # Obtenemos los módulos actuales de la lista cargada
+        a_desplazar = [
+            m for m in self.modulos 
+            if m.get("orden_global") >= orden_objetivo 
+            and m.get("id") != modulo_id_ignorar
+        ]
+        
+        if not a_desplazar:
+            return
+
+        a_desplazar.sort(key=lambda x: x.get("orden_global", 0), reverse=True)
+        
+        logger.info(f"Desplazando {len(a_desplazar)} módulos (principal)")
+        for mod in a_desplazar:
+            self.api_client.update_modulo(mod.get("id"), {"orden_global": mod.get("orden_global") + 1})
 
     def _clear_layout(self, layout) -> None:
         """
@@ -3018,423 +3033,3 @@ class ModulesView(QWidget):
 # DIÁLOGO: CREACIÓN/EDICIÓN RÁPIDA DE PREGUNTAS
 # ============================================================================
 
-
-class OpcionDialog(QDialog):
-    """
-    Diálogo para agregar opciones de respuesta a una pregunta.
-    Se adapta según el tipo de pregunta.
-    """
-
-    def __init__(self, tipo: str, parent=None):
-        super().__init__(parent)
-        self.tipo = tipo
-        self.setWindowTitle("Agregar Opción")
-        self.setFixedSize(450, 300 if tipo == "arrastrar_soltar" else 250)
-        self._setup_ui()
-
-    def _setup_ui(self) -> None:
-        """Configura la interfaz de usuario del diálogo"""
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: white;
-            }
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #e9ecef;
-                border-radius: 8px;
-                font-size: 13px;
-            }
-            QLineEdit:focus {
-                border-color: #4361ee;
-            }
-            QLabel {
-                font-size: 13px;
-                color: #1e293b;
-            }
-            QCheckBox {
-                font-size: 13px;
-                color: #1e293b;
-            }
-        """
-        )
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(20)
-        layout.setContentsMargins(25, 25, 25, 25)
-
-        # Título
-        title = QLabel("Agregar Nueva Opción")
-        title.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        title.setStyleSheet("color: #1e293b; margin-bottom: 10px;")
-        layout.addWidget(title)
-
-        # Texto de la opción
-        layout.addWidget(QLabel("Texto de la opción:"))
-        self.texto_input = QLineEdit()
-        self.texto_input.setPlaceholderText("Escribe la opción...")
-        layout.addWidget(self.texto_input)
-
-        # Campo adicional para arrastrar/soltar
-        if self.tipo == "arrastrar_soltar":
-            layout.addWidget(QLabel("Pareja (definición):"))
-            self.pareja_input = QLineEdit()
-            self.pareja_input.setPlaceholderText("Ej: HyperText Markup Language")
-            layout.addWidget(self.pareja_input)
-
-        # Checkbox para respuesta correcta (solo selección múltiple)
-        if self.tipo == "seleccion_multiple":
-            self.correcta_check = QCheckBox("Es la respuesta correcta")
-            self.correcta_check.setStyleSheet("margin-top: 10px;")
-            layout.addWidget(self.correcta_check)
-
-        layout.addStretch()
-
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Agregar")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
-
-        buttons.button(QDialogButtonBox.Ok).setStyleSheet(
-            StyleHelper.button_success() + "padding: 8px 25px;"
-        )
-        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(
-            StyleHelper.button_danger() + "padding: 8px 25px;"
-        )
-
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def get_data(self) -> dict:
-        """
-        Obtiene los datos de la opción.
-
-        Returns:
-            dict: Datos de la opción
-        """
-        data = {
-            "texto": self.texto_input.text(),
-            "es_correcta": (
-                self.correcta_check.isChecked()
-                if hasattr(self, "correcta_check")
-                else False
-            ),
-        }
-        if self.tipo == "arrastrar_soltar":
-            data["pareja"] = self.pareja_input.text()
-        return data
-
-
-class QuickQuestionDialog(QDialog):
-    """
-    Diálogo para crear o editar preguntas de forma rápida.
-    Soporta diferentes tipos de preguntas y gestión de opciones.
-    """
-
-    def __init__(
-        self, api_client, evaluacion_id: int, question_data: dict = None, parent=None
-    ):
-        super().__init__(parent)
-        self.api_client = api_client
-        self.evaluacion_id = evaluacion_id
-        self.question_data = question_data
-        self.opciones = []
-
-        self.setWindowTitle("Editar Pregunta" if question_data else "Nueva Pregunta")
-        self.setMinimumSize(700, 650)
-        self._setup_ui()
-
-        if question_data:
-            self._load_question_data()
-
-    def _setup_ui(self) -> None:
-        """Configura la interfaz de usuario del diálogo"""
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: white;
-            }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
-                padding: 10px;
-                border: 2px solid #e9ecef;
-                border-radius: 8px;
-                font-size: 13px;
-                background-color: #f8fafc;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
-                border-color: #4361ee;
-                background-color: white;
-            }
-            QLabel {
-                font-size: 13px;
-                color: #1e293b;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #e9ecef;
-                border-radius: 12px;
-                margin-top: 15px;
-                padding-top: 15px;
-                font-size: 14px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 15px;
-                padding: 0 10px;
-            }
-        """
-        )
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(20)
-        layout.setContentsMargins(30, 30, 30, 30)
-
-        # Título
-        title = QLabel("Editar Pregunta" if self.question_data else "Nueva Pregunta")
-        title.setFont(QFont("Segoe UI", 20, QFont.Bold))
-        title.setStyleSheet("color: #1e293b; margin-bottom: 10px;")
-        layout.addWidget(title)
-
-        # --- TIPO Y PUNTOS (en fila) ---
-        tipo_puntos_layout = QHBoxLayout()
-        tipo_puntos_layout.setSpacing(20)
-
-        # Tipo de pregunta
-        tipo_group = self._create_field_group("Tipo de pregunta")
-        tipo_group_layout = QVBoxLayout(tipo_group)
-
-        self.tipo_combo = QComboBox()
-        self.tipo_combo.addItems(
-            ["seleccion_multiple", "verdadero_falso", "arrastrar_soltar"]
-        )
-        self.tipo_combo.currentTextChanged.connect(self._cambiar_tipo)
-        tipo_group_layout.addWidget(self.tipo_combo)
-
-        tipo_puntos_layout.addWidget(tipo_group)
-
-        # Puntos
-        puntos_group = self._create_field_group("Puntos")
-        puntos_group_layout = QVBoxLayout(puntos_group)
-
-        self.puntos_input = QDoubleSpinBox()
-        self.puntos_input.setRange(0.5, 100)
-        self.puntos_input.setValue(10)
-        self.puntos_input.setSingleStep(0.5)
-        puntos_group_layout.addWidget(self.puntos_input)
-
-        tipo_puntos_layout.addWidget(puntos_group)
-        layout.addLayout(tipo_puntos_layout)
-
-        # --- PREGUNTA ---
-        pregunta_group = self._create_field_group("Pregunta")
-        pregunta_layout = QVBoxLayout(pregunta_group)
-
-        self.pregunta_input = QTextEdit()
-        self.pregunta_input.setPlaceholderText("Escribe la pregunta...")
-        self.pregunta_input.setMaximumHeight(100)
-        pregunta_layout.addWidget(self.pregunta_input)
-
-        layout.addWidget(pregunta_group)
-
-        # --- OPCIONES ---
-        self.opciones_group = QGroupBox("Opciones de Respuesta")
-        opciones_layout = QVBoxLayout()
-
-        # Toolbar para opciones
-        toolbar = QHBoxLayout()
-
-        self.add_opcion_btn = QPushButton("Agregar Opción")
-        self.add_opcion_btn.setStyleSheet(StyleHelper.button_success())
-        self.add_opcion_btn.clicked.connect(self._agregar_opcion)
-        toolbar.addWidget(self.add_opcion_btn)
-
-        self.remove_opcion_btn = QPushButton("Eliminar Seleccionada")
-        self.remove_opcion_btn.setStyleSheet(StyleHelper.button_danger())
-        self.remove_opcion_btn.clicked.connect(self._eliminar_opcion)
-        toolbar.addWidget(self.remove_opcion_btn)
-
-        toolbar.addStretch()
-        opciones_layout.addLayout(toolbar)
-
-        # Lista de opciones
-        self.opciones_list = QListWidget()
-        self.opciones_list.setMaximumHeight(200)
-        self.opciones_list.setStyleSheet(
-            """
-            QListWidget {
-                border: 2px solid #e9ecef;
-                border-radius: 8px;
-                background-color: white;
-                padding: 5px;
-            }
-            QListWidget::item {
-                padding: 10px;
-                border-bottom: 1px solid #f1f5f9;
-                border-radius: 4px;
-            }
-            QListWidget::item:selected {
-                background-color: #e1f5fe;
-            }
-        """
-        )
-        opciones_layout.addWidget(self.opciones_list)
-
-        self.opciones_group.setLayout(opciones_layout)
-        layout.addWidget(self.opciones_group)
-
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Guardar Pregunta")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
-
-        buttons.button(QDialogButtonBox.Ok).setStyleSheet(
-            StyleHelper.button_primary() + "padding: 10px 35px; font-size: 14px;"
-        )
-        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(
-            StyleHelper.button_danger() + "padding: 10px 35px; font-size: 14px;"
-        )
-
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-        self._cambiar_tipo(self.tipo_combo.currentText())
-
-    def _create_field_group(self, title: str) -> QFrame:
-        """
-        Crea un grupo con estilo para campos de formulario.
-
-        Args:
-            title: Título del grupo
-
-        Returns:
-            QFrame configurado como grupo de campo
-        """
-        group = QFrame()
-        group.setStyleSheet(
-            """
-            QFrame {
-                background-color: #f8fafc;
-                border-radius: 12px;
-                padding: 15px;
-            }
-        """
-        )
-
-        label = QLabel(title)
-        label.setFont(QFont("Segoe UI", 12, QFont.Bold))
-
-        layout = QVBoxLayout(group)
-        layout.addWidget(label)
-
-        return group
-
-    def _cambiar_tipo(self, tipo: str) -> None:
-        """
-        Cambia la interfaz según el tipo de pregunta seleccionado.
-
-        Args:
-            tipo: Tipo de pregunta
-        """
-        if tipo == "verdadero_falso":
-            self.add_opcion_btn.setEnabled(False)
-            self.remove_opcion_btn.setEnabled(False)
-            self.opciones_list.clear()
-
-            item1 = QListWidgetItem("✓ Verdadero")
-            item1.setData(
-                Qt.UserRole, {"texto": "Verdadero", "es_correcta": True, "orden": 1}
-            )
-            self.opciones_list.addItem(item1)
-
-            item2 = QListWidgetItem("✗ Falso")
-            item2.setData(
-                Qt.UserRole, {"texto": "Falso", "es_correcta": False, "orden": 2}
-            )
-            self.opciones_list.addItem(item2)
-        else:
-            self.add_opcion_btn.setEnabled(True)
-            self.remove_opcion_btn.setEnabled(True)
-
-    def _agregar_opcion(self) -> None:
-        """Abre el diálogo para agregar una nueva opción"""
-        dialog = OpcionDialog(self.tipo_combo.currentText(), self)
-        if dialog.exec_() == QDialog.Accepted:
-            data = dialog.get_data()
-            item_text = data["texto"]
-            if self.tipo_combo.currentText() == "arrastrar_soltar" and data.get(
-                "pareja"
-            ):
-                item_text = f"{data['texto']} → {data['pareja']}"
-
-            item = QListWidgetItem(item_text)
-            item.setData(Qt.UserRole, data)
-
-            if data.get("es_correcta"):
-                item.setForeground(QColor("#10b981"))
-                item.setFont(QFont("Segoe UI", 10, QFont.Bold))
-
-            self.opciones_list.addItem(item)
-
-    def _eliminar_opcion(self) -> None:
-        """Elimina la opción seleccionada de la lista"""
-        current_row = self.opciones_list.currentRow()
-        if current_row >= 0:
-            self.opciones_list.takeItem(current_row)
-
-    def _load_question_data(self) -> None:
-        """Carga los datos de la pregunta existente en el formulario"""
-        self.pregunta_input.setPlainText(self.question_data.get("pregunta", ""))
-        self.puntos_input.setValue(float(self.question_data.get("puntos", 10)))
-
-        tipo = self.question_data.get("tipo", "seleccion_multiple")
-        index = self.tipo_combo.findText(tipo)
-        if index >= 0:
-            self.tipo_combo.setCurrentIndex(index)
-
-        opciones = self.question_data.get("opciones", [])
-        self.opciones_list.clear()
-
-        for opcion in opciones:
-            item_text = opcion["texto"]
-            if tipo == "arrastrar_soltar" and opcion.get("pareja_arrastre"):
-                item_text = f"{opcion['texto']} → {opcion['pareja_arrastre']}"
-
-            item = QListWidgetItem(item_text)
-            item.setData(
-                Qt.UserRole,
-                {
-                    "texto": opcion["texto"],
-                    "es_correcta": opcion.get("es_correcta", False),
-                    "pareja": opcion.get("pareja_arrastre"),
-                    "orden": opcion.get("orden", 1),
-                },
-            )
-
-            if opcion.get("es_correcta"):
-                item.setForeground(QColor("#10b981"))
-
-            self.opciones_list.addItem(item)
-
-    def get_data(self) -> dict:
-        """
-        Obtiene los datos de la pregunta del formulario.
-
-        Returns:
-            dict: Datos de la pregunta
-        """
-        opciones = []
-        for i in range(self.opciones_list.count()):
-            item = self.opciones_list.item(i)
-            data = item.data(Qt.UserRole)
-            if data:
-                data["orden"] = i + 1
-                opciones.append(data)
-
-        return {
-            "pregunta": self.pregunta_input.toPlainText(),
-            "tipo": self.tipo_combo.currentText(),
-            "puntos": self.puntos_input.value(),
-            "opciones": opciones,
-        }

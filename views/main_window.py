@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QStackedWidget
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QStackedWidget, QApplication
+from PyQt6.QtCore import Qt
 from views.components.sidebar import Sidebar
 from views.dashboard_view import DashboardView
 from views.users_view import UsersView
@@ -29,6 +29,7 @@ class MainWindow(QMainWindow):
         # Sidebar
         self.sidebar = Sidebar()
         self.sidebar.navigation_changed.connect(self.change_page)
+        self.sidebar.connect_logout(self.handle_logout)
         main_layout.addWidget(self.sidebar)
 
         # Contenido principal
@@ -78,3 +79,15 @@ class MainWindow(QMainWindow):
         if page_name in pages:
             self.content_stack.setCurrentIndex(pages[page_name])
             self.setWindowTitle(f"Varchate Admin - {page_name.capitalize()}")
+
+    def handle_logout(self):
+        """Cerrar sesión y volver al login"""
+        try:
+            self.api_client.logout()
+        except Exception:
+            pass
+        # Re-open the login window
+        from views.login_window import LoginWindow
+        self.login_window = LoginWindow(self.api_client)
+        self.login_window.show()
+        self.close()
