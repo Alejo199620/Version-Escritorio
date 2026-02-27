@@ -316,14 +316,7 @@ class LeccionesPorModuloCard(QFrame):
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        # Título
-        title_layout = QHBoxLayout()
-        title_label = QLabel("LECCIONES POR MÓDULO")
-        title_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        title_label.setStyleSheet("color: #2c3e50;")
-        title_layout.addWidget(title_label)
-        title_layout.addStretch()
-        layout.addLayout(title_layout)
+        # (el título se muestra en el dashboard; lo retiramos de la tarjeta)
 
         # Grid de módulos con scroll
         scroll = QScrollArea()
@@ -356,11 +349,23 @@ class LeccionesPorModuloCard(QFrame):
 
     def update_data(self, modulos):
         """Actualizar datos de módulos"""
-        # Limpiar grid solo si es diferente
+        # Ignore accidental empty updates (e.g. API glitches) if we already have cards
+        if not modulos:
+            if hasattr(self, "_last_modulos") and self._last_modulos:
+                logger.warning(
+                    "⚠️ update_data llamado con lista vacía, conservando módulos actuales"
+                )
+                return
+        self._last_modulos = list(modulos) if modulos is not None else []
+
+        # Limpiar grid antes de reconstruir
         while self.modulos_grid.count() > 0:
             item = self.modulos_grid.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+
+        # Limpiar pendientes anteriores
+        self.modulos_pendientes_lecciones.clear()
 
         # Ordenar por orden_global
         modulos_ordenados = sorted(modulos, key=lambda x: x.get("orden_global", 999))
@@ -372,7 +377,23 @@ class LeccionesPorModuloCard(QFrame):
             modulo_id = modulo.get("id")
             titulo = modulo.get("titulo", "Módulo")
 
-            # Crear datos iniciales del módulo
+            # Si ya tenemos conteo, construimos tarjeta de inmediato
+            if "lecciones_count" in modulo:
+                cantidad = modulo.get("lecciones_count", 0) or 0
+                modulo_completo = {
+                    "id": modulo_id,
+                    "titulo": titulo,
+                    "orden_global": modulo.get("orden_global", 999),
+                    # Usamos lista vacía del tamaño del conteo para que la tarjeta muestre la cantidad
+                    "lecciones": [None] * cantidad,
+                }
+                card = ModuloTarjetaCard(modulo_completo)
+                row = i // 3
+                col = i % 3
+                self.modulos_grid.addWidget(card, row, col)
+                continue
+
+            # Crear datos iniciales del módulo sin count
             modulo_completo = {
                 "id": modulo_id,
                 "titulo": titulo,
@@ -833,16 +854,16 @@ class DashboardView(QWidget):
 
     def _on_modulos_loaded(self, result):
         """Callback de módulos cargados"""
-        if not self.is_visible:
-            self.loading_indicator.stop_loading()
-            return
-
+        # Siempre procesamos el resultado aunque la pestaña no esté visible aún.
+        # Dejar que el _load_lecciones_counts_light actualice la tarjeta cuando
+        # corresponda; la propia tarjeta no depende de la visibilidad.
         if result and result.get("success"):
             data = result.get("data", [])
             if isinstance(data, list):
                 self.modulos = data
                 self._load_lecciones_counts_light()
         else:
+            # Si existía un indicador, lo detenemos para no dejarlo infinito
             self.loading_indicator.stop_loading()
 
     def _load_lecciones_counts_light(self):

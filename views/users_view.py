@@ -166,22 +166,6 @@ class AvatarSelector(QDialog):
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(15)
 
-        upload_btn = QPushButton("📤 Cargar Archivo")
-        upload_btn.setObjectName("uploadBtn")
-        upload_btn.setFixedSize(140, 40)
-        upload_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        upload_btn.setStyleSheet(
-            """
-            QPushButton#uploadBtn {
-                background-color: #9b59b6;
-                color: white;
-            }
-            QPushButton#uploadBtn:hover {
-                background-color: #8e44ad;
-            }
-        """
-        )
-        upload_btn.clicked.connect(self.cargar_archivo_avatar)
 
         select_btn = QPushButton("Seleccionar")
         select_btn.setObjectName("selectBtn")
@@ -196,7 +180,6 @@ class AvatarSelector(QDialog):
         cancel_btn.clicked.connect(self.reject)
 
         buttons_layout.addStretch()
-        buttons_layout.addWidget(upload_btn)
         buttons_layout.addWidget(select_btn)
         buttons_layout.addWidget(cancel_btn)
         buttons_layout.addStretch()
@@ -1615,6 +1598,7 @@ class UsersView(QWidget):
             acciones_layout.setContentsMargins(5, 0, 5, 0)
             acciones_layout.setSpacing(8)
             acciones_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
 
             # Botón editar
             edit_btn = QPushButton("Editar")
