@@ -166,7 +166,6 @@ class AvatarSelector(QDialog):
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(15)
 
-
         select_btn = QPushButton("Seleccionar")
         select_btn.setObjectName("selectBtn")
         select_btn.setFixedSize(120, 40)
@@ -1598,7 +1597,6 @@ class UsersView(QWidget):
             acciones_layout.setContentsMargins(5, 0, 5, 0)
             acciones_layout.setSpacing(8)
             acciones_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
 
             # Botón editar
             edit_btn = QPushButton("Editar")
