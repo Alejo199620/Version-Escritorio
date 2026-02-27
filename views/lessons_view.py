@@ -36,7 +36,6 @@ from utils.paths import resource_path
 logger = logging.getLogger(__name__)
 
 
-
 class ExerciseItemWidget(QWidget):
     """Widget para mostrar un ejercicio en la lista"""
 
@@ -333,7 +332,9 @@ class LessonDialog(QDialog):
         self.exercises_group.setVisible(False)
 
         # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Guardar Lección")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
 
@@ -384,7 +385,9 @@ class LessonDialog(QDialog):
 
         # 1. Cargar ejercicios reales de la API (si existen)
         if self.lesson_data:
-            result = self.api_client.get_ejercicios(self.modulo_id, self.lesson_data["id"], force_refresh=True)
+            result = self.api_client.get_ejercicios(
+                self.modulo_id, self.lesson_data["id"], force_refresh=True
+            )
             if result["success"]:
                 data = result.get("data", [])
                 if isinstance(data, list):
@@ -406,7 +409,9 @@ class LessonDialog(QDialog):
             pe_copy["_is_pending"] = True
             all_exercises.append(pe_copy)
 
-        logger.debug(f"Total ejercicios: {len(all_exercises)} (API: {len(self.ejercicios)}, Pending: {len(self.pending_exercises)})")
+        logger.debug(
+            f"Total ejercicios: {len(all_exercises)} (API: {len(self.ejercicios)}, Pending: {len(self.pending_exercises)})"
+        )
 
         if not all_exercises:
             # Mostrar mensaje si no hay ejercicios
@@ -418,13 +423,17 @@ class LessonDialog(QDialog):
             for ejercicio in all_exercises:
                 item = QListWidgetItem()
                 widget = ExerciseItemWidget(ejercicio)
-                
+
                 # Estilo especial para pendientes
                 if ejercicio.get("_is_pending"):
-                    widget.setStyleSheet(widget.styleSheet() + "\nQWidget { background-color: #fff9f0; }")
-                    widget.edit_btn.setToolTip("Disponible después de guardar la lección")
-                    widget.edit_btn.setEnabled(False) 
-                
+                    widget.setStyleSheet(
+                        widget.styleSheet() + "\nQWidget { background-color: #fff9f0; }"
+                    )
+                    widget.edit_btn.setToolTip(
+                        "Disponible después de guardar la lección"
+                    )
+                    widget.edit_btn.setEnabled(False)
+
                 widget.edit_clicked.connect(self.editar_ejercicio)
                 widget.delete_clicked.connect(self.eliminar_ejercicio)
 
@@ -435,12 +444,10 @@ class LessonDialog(QDialog):
     def nuevo_ejercicio(self):
         """Crear nuevo ejercicio (soporta staging si la lección es nueva)"""
         logger.debug("Abriendo diálogo para nuevo ejercicio")
-        
+
         # Pasar ID temporal o real
         lesson_id = self.lesson_data["id"] if self.lesson_data else 0
-        dialog = ExerciseDialog(
-            self.api_client, self.modulo_id, lesson_id, parent=self
-        )
+        dialog = ExerciseDialog(self.api_client, self.modulo_id, lesson_id, parent=self)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
@@ -595,7 +602,7 @@ class LessonsView(QWidget):
         self.modulo_actual = None
         self.setup_ui()
         self.load_modulos()
-        
+
         # Conectar señales para actualización en tiempo real
         self.api_client.data_changed.connect(self._on_data_changed)
 
@@ -659,7 +666,9 @@ class LessonsView(QWidget):
             QPushButton:disabled { background-color: #9ca3af; }
             """
         )
-        self.new_lesson_btn.setEnabled(False)  # Se activa cuando se selecciona un módulo
+        self.new_lesson_btn.setEnabled(
+            False
+        )  # Se activa cuando se selecciona un módulo
         self.new_lesson_btn.clicked.connect(self.nueva_leccion)
         header_layout.addWidget(self.new_lesson_btn)
 
@@ -667,7 +676,7 @@ class LessonsView(QWidget):
 
         # Contenedor apilado (StackedWidget) para Placeholder / Tabla
         self.stack = QStackedWidget()
-        
+
         # --- PÁGINA 0: PLACEHOLDER ---
         self.placeholder = self._create_placeholder()
         self.stack.addWidget(self.placeholder)
@@ -682,10 +691,12 @@ class LessonsView(QWidget):
         self.table.setHorizontalHeaderLabels(
             ["ID", "Título", "Orden", "Ejercicios", "Acciones"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
         self.table.setAlternatingRowColors(True)
         table_layout.addWidget(self.table)
-        
+
         self.stack.addWidget(table_container)
         layout.addWidget(self.stack)
 
@@ -694,8 +705,10 @@ class LessonsView(QWidget):
     def _create_placeholder(self) -> QFrame:
         """Crea la vista de placeholder"""
         frame = QFrame()
-        frame.setStyleSheet("background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;")
-        
+        frame.setStyleSheet(
+            "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
+        )
+
         layout = QVBoxLayout(frame)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(20)
@@ -767,11 +780,13 @@ class LessonsView(QWidget):
     def actualizar_tabla(self, lecciones):
         """Actualizar tabla de lecciones"""
         self.table.setRowCount(len(lecciones))
-        self.table.setStyleSheet("""
+        self.table.setStyleSheet(
+            """
             QTableWidget { border: none; }
             QTableView { border: none; }
             QTableWidget::item { padding: 8px; }
-        """)
+        """
+        )
         self.table.setColumnWidth(4, 120)
         self.table.verticalHeader().setDefaultSectionSize(54)
 
@@ -837,7 +852,9 @@ class LessonsView(QWidget):
                 }
             """
             )
-            delete_btn.clicked.connect(lambda checked, l=leccion: self.eliminar_leccion(l))
+            delete_btn.clicked.connect(
+                lambda checked, l=leccion: self.eliminar_leccion(l)
+            )
             acciones_layout.addWidget(delete_btn)
 
             acciones_layout.addStretch()
@@ -862,9 +879,13 @@ class LessonsView(QWidget):
                 pending_exercises = dialog.get_pending_exercises()
 
                 if leccion_id and pending_exercises:
-                    logger.debug(f"Guardando {len(pending_exercises)} ejercicios pendientes para lección {leccion_id}")
+                    logger.debug(
+                        f"Guardando {len(pending_exercises)} ejercicios pendientes para lección {leccion_id}"
+                    )
                     for exercise_data in pending_exercises:
-                        self.api_client.create_ejercicio(self.modulo_actual["id"], leccion_id, exercise_data)
+                        self.api_client.create_ejercicio(
+                            self.modulo_actual["id"], leccion_id, exercise_data
+                        )
 
                 self.load_lecciones(self.modulo_actual["id"], force_refresh=True)
             else:
