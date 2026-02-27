@@ -35,6 +35,7 @@ from views.styles import StyleHelper
 
 logger = logging.getLogger(__name__)
 
+
 class OpcionDialog(QDialog):
     def __init__(self, tipo, parent=None):
         super().__init__(parent)
@@ -162,7 +163,9 @@ class OpcionDialog(QDialog):
             layout.addWidget(self.texto_input)
 
         # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -186,8 +189,15 @@ class ExerciseDialog(QDialog):
     Diálogo universal para crear o editar contenido interactivo (Ejercicios o Preguntas).
     Diseño unificado con StyleHelper para garantizar consistencia visual.
     """
+
     def __init__(
-        self, api_client, modulo_id, content_id, exercise_data=None, is_evaluation=False, parent=None
+        self,
+        api_client,
+        modulo_id,
+        content_id,
+        exercise_data=None,
+        is_evaluation=False,
+        parent=None,
     ):
         super().__init__(parent)
         self.api_client = api_client
@@ -199,8 +209,10 @@ class ExerciseDialog(QDialog):
         self.opciones = []
         self.puntos_input = None
         self.orden_input = None
-        
-        self.setWindowTitle("Pregunta de Evaluación" if is_evaluation else "Ejercicio de Lección")
+
+        self.setWindowTitle(
+            "Pregunta de Evaluación" if is_evaluation else "Ejercicio de Lección"
+        )
         self.setMinimumSize(750, 700)
         self.setup_ui()
 
@@ -252,7 +264,9 @@ class ExerciseDialog(QDialog):
         # Enunciado
         layout.addWidget(QLabel("Pregunta/Enunciado:"))
         self.pregunta_input = QTextEdit()
-        self.pregunta_input.setPlaceholderText("Escriba aquí el enunciado del ejercicio...")
+        self.pregunta_input.setPlaceholderText(
+            "Escriba aquí el enunciado del ejercicio..."
+        )
         self.pregunta_input.setMaximumHeight(100)
         layout.addWidget(self.pregunta_input)
 
@@ -300,29 +314,40 @@ class ExerciseDialog(QDialog):
 
         self.cambiar_tipo(self.tipo_combo.currentText())
 
-
     def cambiar_tipo(self, tipo):
         """Actualizar UI según el tipo de contenido"""
         if tipo == "arrastrar_soltar":
-            self.instrucciones_label.setText("Crea pares de (Término → Definición). El usuario deberá emparejarlos.")
+            self.instrucciones_label.setText(
+                "Crea pares de (Término → Definición). El usuario deberá emparejarlos."
+            )
             self.add_opcion_btn.setEnabled(True)
             self.opciones_list.clear()
         elif tipo == "verdadero_falso":
-            self.instrucciones_label.setText("Selecciona la respuesta correcta (Verdadero o Falso).")
+            self.instrucciones_label.setText(
+                "Selecciona la respuesta correcta (Verdadero o Falso)."
+            )
             self.add_opcion_btn.setEnabled(False)
             self.opciones_list.clear()
             self._add_default_vf_options()
         else:
-            self.instrucciones_label.setText("Añade opciones y marca la(s) correcta(s) usando el checkbox del diálogo.")
+            self.instrucciones_label.setText(
+                "Añade opciones y marca la(s) correcta(s) usando el checkbox del diálogo."
+            )
             self.add_opcion_btn.setEnabled(True)
 
     def _add_default_vf_options(self):
         v = QListWidgetItem("✓ Verdadero")
-        v.setData(Qt.ItemDataRole.UserRole, {"texto": "Verdadero", "es_correcta": True, "orden": 1})
+        v.setData(
+            Qt.ItemDataRole.UserRole,
+            {"texto": "Verdadero", "es_correcta": True, "orden": 1},
+        )
         v.setForeground(QColor("#059669"))
         self.opciones_list.addItem(v)
         f = QListWidgetItem("✗ Falso")
-        f.setData(Qt.ItemDataRole.UserRole, {"texto": "Falso", "es_correcta": False, "orden": 2})
+        f.setData(
+            Qt.ItemDataRole.UserRole,
+            {"texto": "Falso", "es_correcta": False, "orden": 2},
+        )
         f.setForeground(QColor("#dc2626"))
         self.opciones_list.addItem(f)
 
@@ -351,7 +376,7 @@ class ExerciseDialog(QDialog):
         self.pregunta_input.setText(data.get("pregunta", ""))
         self.tipo_combo.setCurrentText(data.get("tipo", "seleccion_multiple"))
         self.estado_combo.setCurrentText(data.get("estado", "activo"))
-        
+
         if self.is_evaluation and self.puntos_input:
             self.puntos_input.setValue(float(data.get("puntos", 10)))
         elif self.orden_input:
@@ -383,14 +408,14 @@ class ExerciseDialog(QDialog):
             "pregunta": self.pregunta_input.toPlainText().strip(),
             "tipo": self.tipo_combo.currentText(),
             "estado": self.estado_combo.currentText(),
-            "opciones": opciones
+            "opciones": opciones,
         }
-        
+
         if self.is_evaluation and self.puntos_input:
             data["puntos"] = self.puntos_input.value()
         elif self.orden_input:
             data["orden"] = self.orden_input.value()
-            
+
         return data
 
 
@@ -410,7 +435,7 @@ class ExercisesView(QWidget):
         self.leccion_actual = None
         self.setup_ui()
         self.load_modulos()
-        
+
         # Conectar señales para actualización en tiempo real
         self.api_client.data_changed.connect(self._on_data_changed)
 
@@ -544,7 +569,9 @@ class ExercisesView(QWidget):
         self.table.setHorizontalHeaderLabels(
             ["ID", "Pregunta", "Tipo", "Orden", "Acciones"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table_layout.addWidget(self.table)
@@ -557,8 +584,10 @@ class ExercisesView(QWidget):
     def _create_placeholder(self) -> QFrame:
         """Crea la vista de placeholder"""
         frame = QFrame()
-        frame.setStyleSheet("background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;")
-        
+        frame.setStyleSheet(
+            "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
+        )
+
         layout = QVBoxLayout(frame)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(20)
@@ -588,7 +617,11 @@ class ExercisesView(QWidget):
 
         if result["success"]:
             data = result.get("data", [])
-            self.modulos = data if isinstance(data, list) else data.get("data", []) if isinstance(data, dict) else []
+            self.modulos = (
+                data
+                if isinstance(data, list)
+                else data.get("data", []) if isinstance(data, dict) else []
+            )
 
             self.modulo_combo.setUpdatesEnabled(False)
             self.modulo_combo.clear()
@@ -628,7 +661,11 @@ class ExercisesView(QWidget):
 
         if result["success"]:
             data = result.get("data", [])
-            self.lecciones = data if isinstance(data, list) else data.get("data", []) if isinstance(data, dict) else []
+            self.lecciones = (
+                data
+                if isinstance(data, list)
+                else data.get("data", []) if isinstance(data, dict) else []
+            )
 
             self.leccion_combo.setUpdatesEnabled(False)
             self.leccion_combo.clear()
@@ -665,8 +702,10 @@ class ExercisesView(QWidget):
     def load_ejercicios(self, modulo_id, leccion_id, force_refresh=False):
         """Cargar ejercicios de la lección"""
         logger.debug(f"Cargando ejercicios de la lección {leccion_id}...")
-        
-        result = self.api_client.get_ejercicios(modulo_id, leccion_id, force_refresh=force_refresh)
+
+        result = self.api_client.get_ejercicios(
+            modulo_id, leccion_id, force_refresh=force_refresh
+        )
 
         if result["success"]:
             data = result.get("data", [])
@@ -777,7 +816,7 @@ class ExercisesView(QWidget):
             acciones_layout.addStretch()
 
             self.table.setCellWidget(row, 4, acciones)
-        
+
         self.table.setUpdatesEnabled(True)
 
     def nuevo_ejercicio(self):
@@ -786,9 +825,9 @@ class ExercisesView(QWidget):
             return
 
         dialog = ExerciseDialog(
-            self.api_client, 
+            self.api_client,
             self.modulo_actual.get("id") if self.modulo_actual else None,
-            self.leccion_actual.get("id") if self.leccion_actual else None
+            self.leccion_actual.get("id") if self.leccion_actual else None,
         )
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -800,7 +839,9 @@ class ExercisesView(QWidget):
 
             if result["success"]:
                 self.load_ejercicios(
-                    self.modulo_actual.get("id"), self.leccion_actual.get("id"), force_refresh=True
+                    self.modulo_actual.get("id"),
+                    self.leccion_actual.get("id"),
+                    force_refresh=True,
                 )
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
@@ -828,7 +869,9 @@ class ExercisesView(QWidget):
 
             if result["success"]:
                 self.load_ejercicios(
-                    self.modulo_actual.get("id"), self.leccion_actual.get("id"), force_refresh=True
+                    self.modulo_actual.get("id"),
+                    self.leccion_actual.get("id"),
+                    force_refresh=True,
                 )
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
@@ -850,7 +893,9 @@ class ExercisesView(QWidget):
 
             if result["success"]:
                 self.load_ejercicios(
-                    self.modulo_actual.get("id"), self.leccion_actual.get("id"), force_refresh=True
+                    self.modulo_actual.get("id"),
+                    self.leccion_actual.get("id"),
+                    force_refresh=True,
                 )
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
@@ -860,7 +905,9 @@ class ExercisesView(QWidget):
         if data_type in ["ejercicios", "lecciones", "modulos"]:
             if self.modulo_actual and self.leccion_actual:
                 self.load_ejercicios(
-                    self.modulo_actual.get("id"), self.leccion_actual.get("id"), force_refresh=True
+                    self.modulo_actual.get("id"),
+                    self.leccion_actual.get("id"),
+                    force_refresh=True,
                 )
             elif data_type == "modulos":
                 self.load_modulos()

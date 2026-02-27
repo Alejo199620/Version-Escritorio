@@ -767,6 +767,13 @@ class LessonsView(QWidget):
     def actualizar_tabla(self, lecciones):
         """Actualizar tabla de lecciones"""
         self.table.setRowCount(len(lecciones))
+        self.table.setStyleSheet("""
+            QTableWidget { border: none; }
+            QTableView { border: none; }
+            QTableWidget::item { padding: 8px; }
+        """)
+        self.table.setColumnWidth(4, 120)
+        self.table.verticalHeader().setDefaultSectionSize(54)
 
         for row, leccion in enumerate(lecciones):
             # ID
@@ -791,18 +798,46 @@ class LessonsView(QWidget):
             # Acciones
             acciones = QWidget()
             acciones_layout = QHBoxLayout(acciones)
-            acciones_layout.setContentsMargins(5, 2, 5, 2)
+            acciones_layout.setContentsMargins(8, 0, 8, 0)
+            acciones_layout.setSpacing(10)
+            acciones_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
             edit_btn = QPushButton("✏️")
             edit_btn.setFixedSize(30, 30)
+            edit_btn.setToolTip("Editar")
+            edit_btn.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #f39c12;
+                    color: white;
+                    border-radius: 4px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #e67e22;
+                }
+            """
+            )
             edit_btn.clicked.connect(lambda checked, l=leccion: self.editar_leccion(l))
             acciones_layout.addWidget(edit_btn)
 
             delete_btn = QPushButton("🗑️")
             delete_btn.setFixedSize(30, 30)
-            delete_btn.clicked.connect(
-                lambda checked, l=leccion: self.eliminar_leccion(l)
+            delete_btn.setToolTip("Eliminar")
+            delete_btn.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #e74c3c;
+                    color: white;
+                    border-radius: 4px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #c0392b;
+                }
+            """
             )
+            delete_btn.clicked.connect(lambda checked, l=leccion: self.eliminar_leccion(l))
             acciones_layout.addWidget(delete_btn)
 
             acciones_layout.addStretch()

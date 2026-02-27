@@ -393,14 +393,19 @@ class EvaluationsView(QWidget):
         # Tabla de preguntas (ahora ocupa todo el espacio)
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(
-            ["ID", "Pregunta", "Tipo", "Puntos", "Acciones"]
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
+        self.table.setHorizontalHeaderLabels([
+            "ID", "Pregunta", "Tipo", "Puntos", "Acciones"
+        ])
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setStyleSheet("""
+            QTableWidget { border: none; }
+            QTableView { border: none; }
+            QTableWidget::item { padding: 8px; }
+        """)
+        self.table.setColumnWidth(4, 120)
+        self.table.verticalHeader().setDefaultSectionSize(54)
 
         content_layout.addWidget(self.table)
 
@@ -415,56 +420,53 @@ class EvaluationsView(QWidget):
         frame.setStyleSheet(
             "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
         )
-        layout = QVBoxLayout(frame)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setSpacing(15)
+            acciones_layout = QHBoxLayout(acciones)
+            acciones_layout.setContentsMargins(8, 0, 8, 0)
+            acciones_layout.setSpacing(10)
+            acciones_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        info = QLabel("No hay una evaluación configurada para este módulo")
-        info.setFont(QFont("Segoe UI", 12))
-        info.setStyleSheet("color: #64748b; border: none;")
-        layout.addWidget(info)
+            # Botón editar (emoji, igual que ejercicios)
+            edit_btn = QPushButton("✏️")
+            edit_btn.setFixedSize(30, 30)
+            edit_btn.setToolTip("Editar")
+            edit_btn.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #f39c12;
+                    color: white;
+                    border-radius: 4px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #e67e22;
+                }
+            """
+            )
+            edit_btn.clicked.connect(lambda checked, p=pregunta: self.editar_pregunta(p))
+            acciones_layout.addWidget(edit_btn)
 
-        create_btn = QPushButton("✨ Crear Nueva Evaluación")
-        create_btn.setMinimumHeight(45)
-        create_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        create_btn.setStyleSheet(StyleHelper.button_primary() + "padding: 0 25px;")
-        create_btn.clicked.connect(self.configurar_evaluacion)
-        layout.addWidget(create_btn)
+            # Botón eliminar (emoji, igual que ejercicios)
+            delete_btn = QPushButton("🗑️")
+            delete_btn.setFixedSize(30, 30)
+            delete_btn.setToolTip("Eliminar")
+            delete_btn.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #e74c3c;
+                    color: white;
+                    border-radius: 4px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #c0392b;
+                }
+            """
+            )
+            delete_btn.clicked.connect(lambda checked, p=pregunta: self.eliminar_pregunta(p))
+            acciones_layout.addWidget(delete_btn)
 
-        return frame
-
-    def _create_main_placeholder(self) -> QFrame:
-        """Crea la vista de placeholder principal"""
-        frame = QFrame()
-        frame.setStyleSheet(
-            "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
-        )
-
-        layout = QVBoxLayout(frame)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setSpacing(20)
-
-        icon = QLabel("📝")
-        icon.setFont(QFont("Segoe UI", 64))
-        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon)
-
-        text = QLabel("Seleccione un módulo para gestionar su evaluación")
-        text.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        text.setStyleSheet("color: #64748b;")
-        text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(text)
-
-        subtext = QLabel("Use el selector superior para comenzar")
-        subtext.setStyleSheet("color: #94a3b8; font-size: 14px;")
-        subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(subtext)
-
-        return frame
-
-    def load_modulos(self):
-        """Cargar lista de módulos"""
-        logger.debug("Cargando módulos...")
+            acciones_layout.addStretch()
+            self.table.setCellWidget(row, 4, acciones)
         result = self.api_client.get_modulos()
 
         if result["success"]:
