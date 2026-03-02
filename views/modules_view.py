@@ -825,8 +825,15 @@ class ModuleDialog(QDialog):
         self.modulos_existentes = []
 
         self.setWindowTitle("Editar Módulo" if modulo_data else "Nuevo Módulo")
-        self.setMinimumSize(700, 600)
+        self.setMinimumSize(800, 600)
+        self.resize(800, 600)
         self.setModal(True)
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
 
         # Cargar módulos existentes para calcular orden siguiente
         QTimer.singleShot(0, self._cargar_modulos_existentes)
@@ -853,43 +860,101 @@ class ModuleDialog(QDialog):
         self.setStyleSheet(
             """
             QDialog {
+                background-color: #f8f9fa;
+            }
+            QLineEdit, QTextEdit, QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 13px;
                 background-color: white;
             }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox {
-                padding: 10px;
-                border: 2px solid #e9ecef;
+            QSpinBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 13px;
+                background-color: white;
+            }
+            QSpinBox::up-button {
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 30px;
+                border-left: 1px solid #d1d5db;
+                border-bottom: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border-top-right-radius: 4px;
+            }
+            QSpinBox::down-button {
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 30px;
+                border-left: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border-bottom-right-radius: 4px;
+            }
+            QSpinBox::up-arrow {
+                image: none;
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-bottom: 6px solid #4b5563;
+                margin-top: 2px;
+            }
+            QSpinBox::down-arrow {
+                image: none;
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid #4b5563;
+                margin-bottom: 2px;
+            }
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+                background-color: #e5e7eb;
+            }
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #e0e0e0;
                 border-radius: 8px;
-                font-size: 13px;
-                background-color: #f8fafc;
+                margin-top: 10px;
+                padding-top: 10px;
             }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {
-                border-color: #4361ee;
-                background-color: white;
-            }
-            QLabel {
-                font-size: 13px;
-                color: #1e293b;
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
             }
         """
         )
 
-        layout = QVBoxLayout(self)
-        layout.setSpacing(20)
-        layout.setContentsMargins(30, 30, 30, 30)
+        main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Usar ScrollArea para que quepan todos los campos y botones
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background-color: transparent;")
+        
+        container = QWidget()
+        container.setStyleSheet("background-color: transparent;")
+        layout = QVBoxLayout(container)
+        layout.setSpacing(15)
+        layout.setContentsMargins(30,30,30,10)
 
         # Título
-        title_label = QLabel("📝 " + ("Editar Módulo" if self.modulo_data else "Nuevo Módulo"))
-        title_label.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        title_label.setStyleSheet("color: #1e293b; margin-bottom: 10px;")
+        title_label = QLabel("📖 " + ("Editar Módulo" if self.modulo_data else "Nuevo Módulo"))
+        title_label.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
+        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
         layout.addWidget(title_label)
 
-        # Formulario
-        form_frame = QFrame()
-        form_frame.setStyleSheet("background-color: white; border-radius: 12px; border: 1px solid #e2e8f0;")
-        form_layout = QFormLayout(form_frame)
-        form_layout.setContentsMargins(24, 24, 24, 24)
-        form_layout.setSpacing(16)
-        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        # Formulario básico
+        form_widget = QWidget()
+        form_layout = QFormLayout(form_widget)
+        form_layout.setSpacing(10)
 
         # Campo: Título
         self.titulo_input = QLineEdit()
@@ -904,95 +969,102 @@ class ModuleDialog(QDialog):
         )
         form_layout.addRow("Tipo:", self.tipo_combo)
 
-        layout.addWidget(form_frame)
+        layout.addWidget(form_widget)
 
-        # --- CAMPO: DESCRIPCIÓN (con editor enriquecido) ---
+        # --- CAMPO: DESCRIPCIÓN ---
         desc_label = QLabel("Descripción:")
-        desc_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        desc_label.setStyleSheet("margin-top: 10px;")
+        desc_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         layout.addWidget(desc_label)
 
         self.descripcion_editor = RichTextEditor()
-        self.descripcion_editor.setMinimumHeight(200)
+        self.descripcion_editor.setMinimumHeight(300)
         self.descripcion_editor.editor.textChanged.connect(self._validar_campos)
         layout.addWidget(self.descripcion_editor)
 
-        # --- CAMPOS: ORDEN Y ESTADO (en fila) ---
-        bottom_layout = QHBoxLayout()
-        bottom_layout.setSpacing(20)
+        # --- OPCIONES ---
+        options_group = QGroupBox("Opciones del Módulo")
+        options_layout = QHBoxLayout()
+        options_layout.setSpacing(20)
 
-        # Orden del módulo
-        orden_group = self._create_field_group("Orden del módulo")
-        orden_layout = QVBoxLayout(orden_group)
-
+        # Orden
+        options_layout.addWidget(QLabel("Orden:"))
         self.orden_spin = QSpinBox()
         self.orden_spin.setRange(1, 999)
         self.orden_spin.setValue(1)
-        orden_layout.addWidget(self.orden_spin)
-        bottom_layout.addWidget(orden_group)
+        self.orden_spin.setFixedWidth(120)
+        options_layout.addWidget(self.orden_spin)
 
-        # Estado del módulo
-        estado_group = self._create_field_group("Estado del módulo")
-        estado_layout = QVBoxLayout(estado_group)
+        options_layout.addStretch()
 
+        # Estado
+        options_layout.addWidget(QLabel("Estado:"))
         self.estado_combo = QComboBox()
         self.estado_combo.addItems(["activo", "inactivo", "borrador"])
-        estado_layout.addWidget(self.estado_combo)
-        bottom_layout.addWidget(estado_group)
+        self.estado_combo.setFixedWidth(120)
+        options_layout.addWidget(self.estado_combo)
 
-        layout.addLayout(bottom_layout)
+        options_group.setLayout(options_layout)
+        layout.addWidget(options_group)
+        
+        scroll.setWidget(container)
+        main_layout.addWidget(scroll)
 
-        # --- BOTONES DE ACCIÓN ---
-        # Deshabilitar botón OK inicialmente
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-        # Estilizar botones
-        self.ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        self.ok_button.setText("Guardar Módulo")
-        self.ok_button.setStyleSheet(
-            StyleHelper.button_primary() + "padding: 10px 30px;"
+        # --- BOTONES (FUERA DEL SCROLL PARA VISIBILIDAD) ---
+        button_container = QFrame()
+        button_container.setFixedHeight(85)
+        button_container.setObjectName("dialogButtons")
+        button_container.setStyleSheet("""
+            #dialogButtons {
+                background-color: #ffffff;
+                border-top: 1px solid #e5e7eb;
+            }
+        """)
+        
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(30, 0, 30, 0)
+        button_layout.setSpacing(15)
+        
+        # Botón Cancelar
+        self.cancel_btn = QPushButton("Cancelar")
+        self.cancel_btn.setFixedHeight(45)
+        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel_btn.setStyleSheet(
+            StyleHelper.button_secondary() + 
+            "QPushButton { border-radius: 22px; padding: 0 30px; background-color: #94a3b8; }" +
+            "QPushButton:hover { background-color: #64748b; }"
         )
-
-        cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
-        cancel_button.setText("Cancelar")
-        cancel_button.setStyleSheet(
-            StyleHelper.button_danger() + "padding: 10px 30px;"
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        # Botón Guardar
+        self.save_btn = QPushButton("✅ Guardar Módulo")
+        self.save_btn.setFixedHeight(45)
+        self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.save_btn.setStyleSheet(
+            StyleHelper.button_primary() + 
+            "QPushButton { border-radius: 22px; padding: 0 40px; }"
         )
+        self.save_btn.clicked.connect(self.accept)
+        
+        button_layout.addStretch()
+        button_layout.addWidget(self.cancel_btn)
+        button_layout.addWidget(self.save_btn)
+        
+        main_layout.addWidget(button_container)
 
-        # Validar campos inicialmente
+        self.ok_button = self.save_btn  # Para validación
         self._validar_campos()
 
     def _create_field_group(self, title: str) -> QFrame:
         """
-        Crea un grupo con estilo para campos de formulario.
-
-        Args:
-            title: Título del grupo
-
-        Returns:
-            QFrame configurado como grupo de campo
+        Obsoleto - Se mantiene por compatibilidad si se llama, 
+        pero se recomienda usar QGroupBox directamente.
         """
         group = QFrame()
-        group.setStyleSheet(
-            """
-            QFrame {
-                background-color: #f8fafc;
-                border-radius: 12px;
-                padding: 15px;
-            }
-        """
-        )
-
-        label = QLabel(title)
-        label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-
+        group.setStyleSheet("background-color: transparent;")
         layout = QVBoxLayout(group)
+        label = QLabel(title)
+        label.setStyleSheet("font-weight: bold;")
         layout.addWidget(label)
-
         return group
 
     def _validar_campos(self) -> None:

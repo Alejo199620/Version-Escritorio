@@ -539,7 +539,7 @@ class UserDialog(QDialog):
         self.setStyleSheet(
             """
             QDialog {
-                background-color: white;
+                background-color: #f3f4f6;
             }
             QLabel {
                 font-size: 14px;
@@ -551,7 +551,7 @@ class UserDialog(QDialog):
                 border: 1px solid #d1d5db;
                 border-radius: 8px;
                 font-size: 14px;
-                background-color: #f9fafb;
+                background-color: white;
                 color: #111827;
                 margin-top: 6px;
                 min-height: 22px;
@@ -646,8 +646,8 @@ class UserDialog(QDialog):
         )
         main_layout.addWidget(title)
 
-        # Sección de Avatar
-        avatar_section = QHBoxLayout()
+        # Sección de Avatar (Directo al main_layout)
+        # Frame circular del avatar
         self.avatar_frame = QFrame()
         self.avatar_frame.setObjectName("avatarContainer")
         self.avatar_frame.setFixedSize(100, 100)
@@ -664,27 +664,17 @@ class UserDialog(QDialog):
         self.avatar_label.setStyleSheet("border: none; background: transparent;")
         avatar_inner_layout.addWidget(self.avatar_label)
 
-        avatar_section.addWidget(self.avatar_frame)
+        main_layout.addWidget(self.avatar_frame, 0, Qt.AlignmentFlag.AlignCenter)
+        main_layout.addSpacing(10)
 
-        avatar_info = QVBoxLayout()
-        avatar_info.setSpacing(2)
-        avatar_info.addStretch()
-        avatar_desc = QLabel("Foto de perfil")
-        avatar_desc.setStyleSheet("font-size: 12px; font-weight: 400; color: #6b7280;")
-        avatar_info.addWidget(avatar_desc)
-
+        # Botón debajo del avatar
         self.change_avatar_btn = QPushButton("Cambiar imagen")
         self.change_avatar_btn.setObjectName("changeAvatarBtn")
         self.change_avatar_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.change_avatar_btn.clicked.connect(self.seleccionar_avatar)
-        avatar_info.addWidget(self.change_avatar_btn)
-        avatar_info.addStretch()
+        main_layout.addWidget(self.change_avatar_btn, 0, Qt.AlignmentFlag.AlignCenter)
 
-        avatar_section.addLayout(avatar_info)
-        avatar_section.addStretch()
-
-        main_layout.addLayout(avatar_section)
-        main_layout.addSpacing(10)
+        main_layout.addSpacing(15)
 
         # Campos del formulario
         def create_field(label_text, placeholder, is_password=False):
@@ -1188,6 +1178,12 @@ class UsersView(QWidget):
         # Cargar datos iniciales
         self.cargar_usuarios(force_refresh=True)
 
+    def showEvent(self, event):
+        """Asegurar que la tabla se ajuste al mostrarse el widget"""
+        super().showEvent(event)
+        # Un pequeño delay para que el layout del QStackedWidget se asiente
+        QTimer.singleShot(50, self.actualizar_tabla)
+
     def setup_ui(self):
         self.setStyleSheet(
             """
@@ -1198,8 +1194,6 @@ class UsersView(QWidget):
                 border: 1px solid #e5e7eb;
                 border-radius: 8px;
                 background-color: white;
-                gridline-color: #f3f4f6;
-                alternate-background-color: #f9fafb;
             }
             QTableWidget::item {
                 padding: 10px 8px;
@@ -1234,12 +1228,44 @@ class UsersView(QWidget):
             QPushButton {
                 font-size: 13px;
             }
+            QPushButton.action-button {
+                background-color: #ffffff;
+                border: 1px solid #d1d5db;
+                border-radius: 16px; /* Make it circular */
+                width: 32px;
+                height: 32px;
+                min-width: 32px;
+                min-height: 32px;
+                max-width: 32px;
+                max-height: 32px;
+                padding: 0;
+                font-size: 16px;
+                font-weight: bold;
+                color: #4b5563;
+            }
+            QPushButton.action-button:hover {
+                background-color: #f3f4f6;
+                border-color: #9ca3af;
+            }
+            QPushButton.action-button:pressed {
+                background-color: #e5e7eb;
+                border-color: #6b7280;
+            }
+            QPushButton.action-button.edit {
+                color: #2563eb; /* Blue for edit */
+            }
+            QPushButton.action-button.delete {
+                color: #dc2626; /* Red for delete */
+            }
+            QPushButton.action-button.view {
+                color: #059669; /* Green for view */
+            }
         """
         )
 
         layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(25, 25, 25, 25)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         # Header
         header_layout = QHBoxLayout()
@@ -1342,9 +1368,20 @@ class UsersView(QWidget):
         self.table.setHorizontalHeaderLabels(
             ["ID", "Nombre", "Email", "Rol", "Acciones"]
         )
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
+        # Configurar anchos de columna
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(0, 50)  # ID
+
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch) # Nombre
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Email
+
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(3, 150) # Rol
+
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(4, 220) # Acciones
+
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.verticalHeader().setVisible(False)
@@ -1575,6 +1612,12 @@ class UsersView(QWidget):
         return self.usuarios_filtrados[inicio:fin]
 
     def actualizar_tabla(self):
+        if not self.table:
+            return
+            
+        usuarios_pagina = self.obtener_pagina_actual()
+        self.table.setRowCount(len(usuarios_pagina))
+
         usuarios_pagina = self.obtener_pagina_actual()
         self.table.setRowCount(len(usuarios_pagina))
 
@@ -1585,14 +1628,10 @@ class UsersView(QWidget):
             self.table.setItem(row, 0, id_item)
 
             # Nombre
-            nombre_item = QTableWidgetItem(usuario.get("nombre", ""))
-            nombre_item.setFont(QFont("Segoe UI", 11))
-            self.table.setItem(row, 1, nombre_item)
+            self.table.setItem(row, 1, QTableWidgetItem(usuario.get("nombre", "")))
 
             # Email
-            email_item = QTableWidgetItem(usuario.get("email", ""))
-            email_item.setFont(QFont("Segoe UI", 11))
-            self.table.setItem(row, 2, email_item)
+            self.table.setItem(row, 2, QTableWidgetItem(usuario.get("email", "")))
 
             # Rol
             rol_item = QTableWidgetItem(usuario.get("rol", ""))
@@ -1607,15 +1646,16 @@ class UsersView(QWidget):
 
             # Acciones
             acciones = QWidget()
-            acciones.setFixedHeight(50)
+            acciones.setFixedHeight(60) # Un poco más alto para centrar bien
             acciones_layout = QHBoxLayout(acciones)
-            acciones_layout.setContentsMargins(5, 0, 5, 0)
-            acciones_layout.setSpacing(8)
-            acciones_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            acciones_layout.setContentsMargins(0, 0, 0, 0)
+            acciones_layout.setSpacing(15) # Más espacio entre botones
+            
+            acciones_layout.addStretch() # Empujar al centro
 
             # Botón editar
-            edit_btn = QPushButton("Editar")
-            edit_btn.setFixedSize(70, 32)
+            edit_btn = QPushButton("✎")
+            edit_btn.setFixedSize(32, 32)
             edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             edit_btn.setToolTip("Editar usuario")
             edit_btn.setStyleSheet(
@@ -1623,9 +1663,9 @@ class UsersView(QWidget):
                 QPushButton {
                     background-color: #3498db;
                     color: white;
-                    border-radius: 4px;
+                    border-radius: 16px;
                     font-weight: bold;
-                    font-size: 12px;
+                    font-size: 16px;
                 }
                 QPushButton:hover {
                     background-color: #2980b9;
@@ -1684,7 +1724,7 @@ class UsersView(QWidget):
                 QPushButton {
                     background-color: #e74c3c;
                     color: white;
-                    border-radius: 4px;
+                    border-radius: 16px;
                     font-size: 14px;
                     font-weight: bold;
                 }
@@ -1700,9 +1740,22 @@ class UsersView(QWidget):
             acciones_layout.addWidget(edit_btn)
             acciones_layout.addWidget(estado_btn)
             acciones_layout.addWidget(delete_btn)
+            acciones_layout.addStretch() # Empujar al centro
 
             self.table.setCellWidget(row, 4, acciones)
-            self.table.setRowHeight(row, 60)
+            self.table.setRowHeight(row, 80)
+
+        # Configurar anchos de columna DESPUÉS de llenar datos y widgets
+        header = self.table.horizontalHeader()
+        if header:
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+            self.table.setColumnWidth(0, 50)  # ID
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch) # Nombre
+            header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Email
+            header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+            self.table.setColumnWidth(3, 150) # Rol
+            header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+            self.table.setColumnWidth(4, 220) # Acciones
 
         self.actualizar_stats_normal()
         self.page_label.setText(f"Página {self.pagina_actual} de {self.total_paginas}")
