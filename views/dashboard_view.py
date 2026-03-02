@@ -545,7 +545,7 @@ class DashboardView(QWidget):
         cards_data = [
             ("usuarios", "USUARIOS REGISTRADOS", "#3b82f6"),
             ("modulos", "MÓDULOS", "#10b981"),
-            ("certificaciones", "CERTIFICADOS", "#f59e0b"),
+            ("certificaciones", "CERTIFICADOS EMITIDOS", "#f59e0b"),
         ]
 
         positions = [(0, 0), (0, 1), (0, 2)]

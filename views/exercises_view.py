@@ -482,28 +482,8 @@ class ExercisesView(QWidget):
         title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
         title.setStyleSheet("color: #2c3e50;")
 
-        self.new_btn = QPushButton("➕ Nuevo Ejercicio")
-        self.new_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #e67e22;
-                color: white;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-                min-width: 140px;
-            }
-            QPushButton:hover {
-                background-color: #d35400;
-            }
-        """
-        )
-        self.new_btn.clicked.connect(self.nuevo_ejercicio)
-        self.new_btn.setEnabled(False)
-
         header_layout.addWidget(title)
         header_layout.addStretch()
-        header_layout.addWidget(self.new_btn)
 
         layout.addLayout(header_layout)
 
@@ -632,7 +612,6 @@ class ExercisesView(QWidget):
 
             self.leccion_combo.clear()
             self.leccion_combo.addItem("Primero seleccione un módulo", None)
-            self.new_btn.setEnabled(False)
         else:
             QMessageBox.warning(
                 self, "Error", f"Error al cargar módulos: {result.get('error')}"
@@ -643,7 +622,6 @@ class ExercisesView(QWidget):
             self.modulo_actual = None
             self.leccion_combo.clear()
             self.leccion_combo.addItem("Seleccione un módulo primero", None)
-            self.new_btn.setEnabled(False)
             return
 
         modulo_id = self.modulo_combo.currentData()
@@ -683,7 +661,6 @@ class ExercisesView(QWidget):
     def cambiar_leccion(self, index):
         if index <= 0:
             self.leccion_actual = None
-            self.new_btn.setEnabled(False)
             self.ejercicios = []
             self.stack.setCurrentIndex(0)
             return
@@ -696,7 +673,6 @@ class ExercisesView(QWidget):
         )
 
         if self.modulo_actual:
-            self.new_btn.setEnabled(True)
             self.load_ejercicios(self.modulo_actual.get("id"), leccion_id)
 
     def load_ejercicios(self, modulo_id, leccion_id, force_refresh=False):
@@ -828,33 +804,6 @@ class ExercisesView(QWidget):
             self.table.setCellWidget(row, 4, acciones)
 
         self.table.setUpdatesEnabled(True)
-
-    def nuevo_ejercicio(self):
-        if not self.modulo_actual or not self.leccion_actual:
-            QMessageBox.warning(self, "Error", "Selecciona un módulo y una lección")
-            return
-
-        dialog = ExerciseDialog(
-            self.api_client,
-            self.modulo_actual.get("id") if self.modulo_actual else None,
-            self.leccion_actual.get("id") if self.leccion_actual else None,
-        )
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            data = dialog.get_data()
-
-            result = self.api_client.create_ejercicio(
-                self.modulo_actual.get("id"), self.leccion_actual.get("id"), data
-            )
-
-            if result["success"]:
-                self.load_ejercicios(
-                    self.modulo_actual.get("id"),
-                    self.leccion_actual.get("id"),
-                    force_refresh=True,
-                )
-            else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
     def editar_ejercicio(self, ejercicio):
         if not self.modulo_actual or not self.leccion_actual:

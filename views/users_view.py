@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QAbstractItemView,
     QFileDialog,
+    QGridLayout,
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPainter, QPen
@@ -70,7 +71,7 @@ class AvatarSelector(QDialog):
         self.selected_avatar = current_avatar
         self.avatars = []
         self.setWindowTitle("Seleccionar Avatar")
-        self.setFixedSize(600, 500)
+        self.setFixedSize(550, 600)
         self.setup_ui()
         self.cargar_avatars()
 
@@ -155,9 +156,10 @@ class AvatarSelector(QDialog):
         scroll.setStyleSheet("border: none;")
 
         scroll_widget = QWidget()
-        self.avatars_layout = QHBoxLayout(scroll_widget)
-        self.avatars_layout.setSpacing(20)
-        self.avatars_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.avatars_layout = QGridLayout(scroll_widget)
+        self.avatars_layout.setSpacing(15)
+        self.avatars_layout.setContentsMargins(15, 15, 15, 15)
+        self.avatars_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
 
         scroll.setWidget(scroll_widget)
         layout.addWidget(scroll)
@@ -288,7 +290,10 @@ class AvatarSelector(QDialog):
         # Hacer clickeable
         frame.mousePressEvent = lambda e, a=avatar: self.seleccionar_avatar(a, frame)
 
-        self.avatars_layout.addWidget(frame)
+        count = self.avatars_layout.count()
+        row = count // 3
+        col = count % 3
+        self.avatars_layout.addWidget(frame, row, col)
 
     def mostrar_iniciales(self, label, texto):
         """Mostrar iniciales en el avatar"""
@@ -354,7 +359,10 @@ class AvatarSelector(QDialog):
                 a, frame
             )
 
-            self.avatars_layout.addWidget(frame)
+            count = self.avatars_layout.count()
+            row = count // 3
+            col = count % 3
+            self.avatars_layout.addWidget(frame, row, col)
 
     def seleccionar_avatar(self, avatar, frame):
         """Seleccionar un avatar"""
@@ -496,7 +504,14 @@ class AvatarSelector(QDialog):
             self.selected_avatar, frame
         )
 
-        self.avatars_layout.insertWidget(0, frame)
+        # Para avatares personalizados, redibujamos todo para que aparezca al inicio
+        # O simplemente lo añadimos al final por ahora para simplificar, 
+        # pero el usuario suele querer ver lo nuevo al principio.
+        # En QGridLayout, mover todo es costoso. Lo añadiremos según el orden de carga.
+        count = self.avatars_layout.count()
+        row = count // 3
+        col = count % 3
+        self.avatars_layout.addWidget(frame, row, col)
 
 
 class UserDialog(QDialog):
