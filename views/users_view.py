@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPainter, QPen
 from views.components.toast import ToastNotification
+from views.styles import StyleHelper
 import logging
 import re
 import requests
@@ -522,7 +523,15 @@ class UserDialog(QDialog):
         self.selected_avatar = None  # Puede ser Dict
         self.setWindowTitle("Editar Usuario" if user_data else "Nuevo Usuario")
         self.setFixedWidth(650)
-        self.setMinimumHeight(750)
+        self.setMinimumHeight(600)
+        self.resize(650, 600)
+        self.setModal(True)
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.setup_ui()
 
         # Timer para validación en tiempo real
@@ -539,32 +548,12 @@ class UserDialog(QDialog):
         self.setStyleSheet(
             """
             QDialog {
-                background-color: #f3f4f6;
+                background-color: #e5e7eb;
             }
             QLabel {
                 font-size: 14px;
                 color: #4b5563;
                 font-weight: 600;
-            }
-            QLineEdit, QComboBox {
-                padding: 12px 16px;
-                border: 1px solid #d1d5db;
-                border-radius: 8px;
-                font-size: 14px;
-                background-color: white;
-                color: #111827;
-                margin-top: 6px;
-                min-height: 22px;
-            }
-            QLineEdit:focus, QComboBox:focus {
-                border: 1px solid #3b82f6;
-                background-color: white;
-            }
-            QLineEdit.valid {
-                border: 1px solid #10b981;
-            }
-            QLineEdit.invalid {
-                border: 1px solid #ef4444;
             }
             QLabel.error {
                 color: #ef4444;
@@ -572,15 +561,10 @@ class UserDialog(QDialog):
                 font-weight: 500;
                 margin-bottom: 8px;
             }
-            QLabel.success {
-                color: #10b981;
-                font-size: 12px;
-                font-weight: 500;
-            }
             QFrame#avatarContainer {
-                background-color: #f3f4f6;
+                background-color: #e5e7eb;
                 border-radius: 50px;
-                border: 2px solid #e5e7eb;
+                border: 2px solid #d1d5db;
             }
             QPushButton#changeAvatarBtn {
                 background-color: transparent;
@@ -605,49 +589,51 @@ class UserDialog(QDialog):
                 background-color: #3b82f6;
                 border-radius: 3px;
             }
-            QPushButton#saveBtn {
-                background-color: #2563eb;
-                color: white;
-                border-radius: 6px;
-                padding: 10px 20px;
-                font-weight: 600;
-                font-size: 14px;
-                border: none;
-            }
-            QPushButton#saveBtn:hover {
-                background-color: #1d4ed8;
-            }
-            QPushButton#saveBtn:disabled {
-                background-color: #94a3b8;
-            }
-            QPushButton#cancelBtn {
-                background-color: white;
-                color: #4b5563;
-                border-radius: 6px;
-                padding: 10px 20px;
-                font-weight: 600;
-                font-size: 14px;
-                border: 1px solid #d1d5db;
-            }
-            QPushButton#cancelBtn:hover {
-                background-color: #f3f4f6;
-            }
         """
         )
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(30, 25, 30, 30)
-        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # --- ÁREA DE DESPLAZAMIENTO (SCROLL AREA) ---
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background-color: transparent;")
+        
+        container = QWidget()
+        container.setObjectName("formContainer")
+        container.setStyleSheet("""
+            #formContainer {
+                background-color: #e5e7eb;
+            }
+            QLineEdit, QComboBox {
+                background-color: #ffffff;
+                color: #111827;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 10px 15px;
+                margin-top: 4px;
+                min-height: 20px;
+            }
+            QLineEdit:focus, QComboBox:focus {
+                border: 2px solid #4361ee;
+                background-color: #ffffff;
+            }
+        """)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(30, 25, 30, 30)
+        layout.setSpacing(12)
 
         # Título
         title = QLabel("Editar Usuario" if self.user_data else "Nuevo Usuario")
         title.setStyleSheet(
             "font-size: 20px; color: #111827; font-weight: 700; margin-bottom: 15px;"
         )
-        main_layout.addWidget(title)
+        layout.addWidget(title)
 
-        # Sección de Avatar (Directo al main_layout)
-        # Frame circular del avatar
+        # Sección de Avatar
         self.avatar_frame = QFrame()
         self.avatar_frame.setObjectName("avatarContainer")
         self.avatar_frame.setFixedSize(100, 100)
@@ -664,59 +650,72 @@ class UserDialog(QDialog):
         self.avatar_label.setStyleSheet("border: none; background: transparent;")
         avatar_inner_layout.addWidget(self.avatar_label)
 
-        main_layout.addWidget(self.avatar_frame, 0, Qt.AlignmentFlag.AlignCenter)
-        main_layout.addSpacing(10)
+        layout.addWidget(self.avatar_frame, 0, Qt.AlignmentFlag.AlignCenter)
+        layout.addSpacing(10)
 
         # Botón debajo del avatar
         self.change_avatar_btn = QPushButton("Cambiar imagen")
         self.change_avatar_btn.setObjectName("changeAvatarBtn")
         self.change_avatar_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.change_avatar_btn.clicked.connect(self.seleccionar_avatar)
-        main_layout.addWidget(self.change_avatar_btn, 0, Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.change_avatar_btn, 0, Qt.AlignmentFlag.AlignCenter)
 
-        main_layout.addSpacing(15)
+        layout.addSpacing(15)
 
         # Campos del formulario
         def create_field(label_text, placeholder, is_password=False):
-            container = QVBoxLayout()
-            container.setSpacing(4)
+            field_container = QVBoxLayout()
+            field_container.setSpacing(4)
             label = QLabel(label_text)
-            container.addWidget(label)
+            field_container.addWidget(label)
 
             field = QLineEdit()
             field.setPlaceholderText(placeholder)
+            field.setStyleSheet("""
+                QLineEdit {
+                    background-color: #ffffff;
+                    color: #111827;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    font-size: 14px;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #4361ee;
+                }
+            """)
             if is_password:
                 field.setEchoMode(QLineEdit.EchoMode.Password)
             field.textChanged.connect(self.on_text_changed)
-            container.addWidget(field)
+            field_container.addWidget(field)
 
-            error_label = QLabel("")
-            error_label.setProperty("class", "error")
-            error_label.setWordWrap(True)
-            container.addWidget(error_label)
+            err_label = QLabel("")
+            err_label.setProperty("class", "error")
+            err_label.setWordWrap(True)
+            field_container.addWidget(err_label)
 
-            return field, error_label, container
+            return field, err_label, field_container
 
         # Nombre
         self.nombre_input, self.nombre_error, name_cont = create_field(
             "Nombre Completo", "Ej: Juan Pérez"
         )
-        main_layout.addLayout(name_cont)
+        layout.addLayout(name_cont)
 
         # Email
         self.email_input, self.email_error, email_cont = create_field(
             "Correo Electrónico", "correo@ejemplo.com"
         )
-        main_layout.addLayout(email_cont)
+        layout.addLayout(email_cont)
 
         # Password (solo para nuevos)
         if not self.user_data:
             self.password_input, self.password_error, pass_cont = create_field(
                 "Contraseña", "Mínimo 8 caracteres..."
             )
-            main_layout.addLayout(pass_cont)
+            layout.addLayout(pass_cont)
 
-            # Contenedor de seguridad (separado para evitar solapamientos)
+            # Contenedor de seguridad
             security_layout = QVBoxLayout()
             security_layout.setContentsMargins(0, 5, 0, 10)
             security_layout.setSpacing(5)
@@ -733,12 +732,12 @@ class UserDialog(QDialog):
             self.password_strength.setTextVisible(False)
             security_layout.addWidget(self.password_strength)
 
-            main_layout.addLayout(security_layout)
+            layout.addLayout(security_layout)
 
             self.password_confirm_input, self.password_confirm_error, conf_cont = (
                 create_field("Confirmar Contraseña", "Repite la contraseña")
             )
-            main_layout.addLayout(conf_cont)
+            layout.addLayout(conf_cont)
 
         # Rol y Estado en una fila
         row_layout = QHBoxLayout()
@@ -748,6 +747,23 @@ class UserDialog(QDialog):
         rol_cont.addWidget(QLabel("Rol"))
         self.rol_combo = QComboBox()
         self.rol_combo.addItems(["aprendiz", "administrador"])
+        self.rol_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #ffffff;
+                color: #111827;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 10px 15px;
+                min-height: 25px;
+            }
+            QComboBox:focus {
+                border: 2px solid #4361ee;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+        """)
         rol_cont.addWidget(self.rol_combo)
         row_layout.addLayout(rol_cont)
 
@@ -756,32 +772,60 @@ class UserDialog(QDialog):
         estado_cont.addWidget(QLabel("Estado"))
         self.estado_combo = QComboBox()
         self.estado_combo.addItems(["activo", "inactivo"])
+        self.estado_combo.setStyleSheet(self.rol_combo.styleSheet())
         estado_cont.addWidget(self.estado_combo)
         row_layout.addLayout(estado_cont)
 
-        main_layout.addLayout(row_layout)
-        main_layout.addSpacing(20)
+        layout.addLayout(row_layout)
+        layout.addSpacing(20)
 
-        # Botones
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setSpacing(12)
+        scroll.setWidget(container)
+        main_layout.addWidget(scroll)
 
+        # --- BOTONES (FUERA DEL SCROLL) ---
+        button_container = QFrame()
+        button_container.setFixedHeight(85)
+        button_container.setObjectName("dialogButtons")
+        button_container.setStyleSheet("""
+            #dialogButtons {
+                background-color: #ffffff;
+                border-top: 1px solid #e5e7eb;
+            }
+        """)
+        
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(30, 0, 30, 0)
+        button_layout.setSpacing(15)
+        
+        # Botón Cancelar
+        self.cancel_btn = QPushButton("Cancelar")
+        self.cancel_btn.setFixedHeight(45)
+        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel_btn.setStyleSheet(
+            StyleHelper.button_secondary() + 
+            "QPushButton { border-radius: 22px; padding: 0 30px; background-color: #ef4444; color: white; }" +
+            "QPushButton:hover { background-color: #dc2626; }"
+        )
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        # Botón Guardar
         self.save_btn = QPushButton("Guardar Usuario")
-        self.save_btn.setObjectName("saveBtn")
+        self.save_btn.setFixedHeight(45)
         self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.save_btn.setEnabled(False)
+        self.save_btn.setStyleSheet(
+            StyleHelper.button_primary() + 
+            "QPushButton { border-radius: 22px; padding: 0 40px; background-color: #4361ee; color: white; }" +
+            "QPushButton:hover { background-color: #3f37c9; }"
+        )
         self.save_btn.clicked.connect(self.validate_and_accept)
+        
+        button_layout.addStretch()
+        button_layout.addWidget(self.cancel_btn)
+        button_layout.addWidget(self.save_btn)
+        
+        main_layout.addWidget(button_container)
 
-        cancel_btn = QPushButton("Cancelar")
-        cancel_btn.setObjectName("cancelBtn")
-        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn.clicked.connect(self.reject)
-
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(cancel_btn)
-        buttons_layout.addWidget(self.save_btn)
-
-        main_layout.addLayout(buttons_layout)
+        self.ok_button = self.save_btn  # Para validación
 
         self.save_btn.setEnabled(False)
 
@@ -789,11 +833,12 @@ class UserDialog(QDialog):
         """Establecer avatar por defecto con iniciales"""
         nombre = self.nombre_input.text() or "NU"
         palabras = nombre.split()
-        iniciales = ""
+        iniciales_list = []
         for palabra in palabras[:2]:
-            if palabra:
-                iniciales += palabra[0].upper()
+            if palabra and len(palabra) > 0:
+                iniciales_list.append(palabra[0].upper())
 
+        iniciales = "".join(iniciales_list)
         if not iniciales:
             iniciales = "NU"
 

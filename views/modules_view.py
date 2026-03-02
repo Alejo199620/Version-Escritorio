@@ -1030,18 +1030,19 @@ class ModuleDialog(QDialog):
         self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cancel_btn.setStyleSheet(
             StyleHelper.button_secondary() + 
-            "QPushButton { border-radius: 22px; padding: 0 30px; background-color: #94a3b8; }" +
-            "QPushButton:hover { background-color: #64748b; }"
+            "QPushButton { border-radius: 22px; padding: 0 30px; background-color: #ef4444; color: white; }" +
+            "QPushButton:hover { background-color: #dc2626; }"
         )
         self.cancel_btn.clicked.connect(self.reject)
         
         # Botón Guardar
-        self.save_btn = QPushButton("✅ Guardar Módulo")
+        self.save_btn = QPushButton("Guardar Módulo")
         self.save_btn.setFixedHeight(45)
         self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_btn.setStyleSheet(
             StyleHelper.button_primary() + 
-            "QPushButton { border-radius: 22px; padding: 0 40px; }"
+            "QPushButton { border-radius: 22px; padding: 0 40px; background-color: #4361ee; color: white; }" +
+            "QPushButton:hover { background-color: #3f37c9; }"
         )
         self.save_btn.clicked.connect(self.accept)
         
