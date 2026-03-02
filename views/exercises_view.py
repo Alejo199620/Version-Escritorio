@@ -730,6 +730,15 @@ class ExercisesView(QWidget):
     def actualizar_tabla(self, ejercicios):
         self.table.setUpdatesEnabled(False)
         self.table.setRowCount(len(ejercicios))
+        self.table.setStyleSheet(
+            """
+            QTableWidget { border: none; }
+            QTableView { border: none; }
+            QTableWidget::item { padding: 8px; }
+        """
+        )
+        self.table.setColumnWidth(4, 120)
+        self.table.verticalHeader().setDefaultSectionSize(54)
 
         for row, ejercicio in enumerate(ejercicios):
             # ID
@@ -766,8 +775,9 @@ class ExercisesView(QWidget):
             # Acciones
             acciones = QWidget()
             acciones_layout = QHBoxLayout(acciones)
-            acciones_layout.setContentsMargins(5, 2, 5, 2)
-            acciones_layout.setSpacing(5)
+            acciones_layout.setContentsMargins(8, 0, 8, 0)
+            acciones_layout.setSpacing(10)
+            acciones_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
             # Botón editar
             edit_btn = QPushButton("✏️")

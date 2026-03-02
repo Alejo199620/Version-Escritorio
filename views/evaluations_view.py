@@ -414,59 +414,65 @@ class EvaluationsView(QWidget):
 
         self.setLayout(main_layout)
 
-    def _create_no_eval_placeholder(self) -> QFrame:
-        """Crea el placeholder que se muestra cuando un módulo no tiene evaluación"""
+    def _create_main_placeholder(self) -> QFrame:
+        """Crea el placeholder inicial de la vista"""
         frame = QFrame()
         frame.setStyleSheet(
             "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
         )
-            acciones_layout = QHBoxLayout(acciones)
-            acciones_layout.setContentsMargins(8, 0, 8, 0)
-            acciones_layout.setSpacing(10)
-            acciones_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-            # Botón editar (emoji, igual que ejercicios)
-            edit_btn = QPushButton("✏️")
-            edit_btn.setFixedSize(30, 30)
-            edit_btn.setToolTip("Editar")
-            edit_btn.setStyleSheet(
-                """
-                QPushButton {
-                    background-color: #f39c12;
-                    color: white;
-                    border-radius: 4px;
-                    font-size: 14px;
-                }
-                QPushButton:hover {
-                    background-color: #e67e22;
-                }
-            """
-            )
-            edit_btn.clicked.connect(lambda checked, p=pregunta: self.editar_pregunta(p))
-            acciones_layout.addWidget(edit_btn)
+        layout = QVBoxLayout(frame)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
 
-            # Botón eliminar (emoji, igual que ejercicios)
-            delete_btn = QPushButton("🗑️")
-            delete_btn.setFixedSize(30, 30)
-            delete_btn.setToolTip("Eliminar")
-            delete_btn.setStyleSheet(
-                """
-                QPushButton {
-                    background-color: #e74c3c;
-                    color: white;
-                    border-radius: 4px;
-                    font-size: 14px;
-                }
-                QPushButton:hover {
-                    background-color: #c0392b;
-                }
-            """
-            )
-            delete_btn.clicked.connect(lambda checked, p=pregunta: self.eliminar_pregunta(p))
-            acciones_layout.addWidget(delete_btn)
+        icon = QLabel("📝")
+        icon.setFont(QFont("Segoe UI", 64))
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
 
-            acciones_layout.addStretch()
-            self.table.setCellWidget(row, 4, acciones)
+        text = QLabel("Panel de Gestión de Evaluaciones")
+        text.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        text.setStyleSheet("color: #64748b;")
+        text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(text)
+
+        subtext = QLabel("Seleccione un módulo arriba para ver o configurar su evaluación")
+        subtext.setStyleSheet("color: #94a3b8; font-size: 14px;")
+        subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtext)
+
+        return frame
+
+    def _create_no_eval_placeholder(self) -> QFrame:
+        """Crea el placeholder que se muestra cuando un módulo no tiene evaluación"""
+        frame = QFrame()
+        frame.setMinimumHeight(300)
+        frame.setStyleSheet(
+            "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
+        )
+        layout = QVBoxLayout(frame)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(15)
+
+        icon = QLabel("✨")
+        icon.setFont(QFont("Segoe UI", 48, QFont.Weight.Bold))
+        layout.addWidget(icon, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        msg = QLabel("Este módulo aún no tiene una evaluación configurada.")
+        msg.setFont(QFont("Segoe UI", 12))
+        msg.setStyleSheet("color: #64748b;")
+        layout.addWidget(msg, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        btn = QPushButton("🚀 Configurar Evaluación Ahora")
+        btn.setMinimumSize(250, 45)
+        btn.setStyleSheet(StyleHelper.button_primary())
+        btn.clicked.connect(self.configurar_evaluacion)
+        layout.addWidget(btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        return frame
+
+    def load_modulos(self):
+        """Cargar módulos desde la API"""
         result = self.api_client.get_modulos()
 
         if result["success"]:
@@ -571,7 +577,17 @@ class EvaluationsView(QWidget):
 
     def actualizar_tabla(self, preguntas):
         """Actualizar tabla de preguntas"""
+        self.table.setUpdatesEnabled(False)
         self.table.setRowCount(len(preguntas))
+        self.table.setStyleSheet(
+            """
+            QTableWidget { border: none; }
+            QTableView { border: none; }
+            QTableWidget::item { padding: 8px; }
+        """
+        )
+        self.table.setColumnWidth(4, 120)
+        self.table.verticalHeader().setDefaultSectionSize(54)
 
         for row, pregunta in enumerate(preguntas):
             # ID
@@ -608,8 +624,9 @@ class EvaluationsView(QWidget):
             # Acciones
             acciones = QWidget()
             acciones_layout = QHBoxLayout(acciones)
-            acciones_layout.setContentsMargins(5, 2, 5, 2)
-            acciones_layout.setSpacing(5)
+            acciones_layout.setContentsMargins(8, 0, 8, 0)
+            acciones_layout.setSpacing(10)
+            acciones_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
             # Botón editar
             edit_btn = QPushButton("✏️")
@@ -658,6 +675,8 @@ class EvaluationsView(QWidget):
             acciones_layout.addStretch()
 
             self.table.setCellWidget(row, 4, acciones)
+
+        self.table.setUpdatesEnabled(True)
 
     def configurar_evaluacion(self):
         """Abrir diálogo de configuración de evaluación"""
