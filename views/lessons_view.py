@@ -32,6 +32,7 @@ import logging
 from views.components.rich_text_editor import RichTextEditor
 from views.exercises_view import ExerciseDialog  # <-- IMPORTANTE: esta importación
 from utils.paths import resource_path
+from views.styles import StyleHelper
 
 logger = logging.getLogger(__name__)
 
@@ -152,13 +153,16 @@ class ExerciseItemWidget(QWidget):
 class LessonDialog(QDialog):
     """Diálogo para crear/editar lecciones con gestión de ejercicios"""
 
-    def __init__(self, api_client, modulo_id, lesson_data=None, parent=None):
+    def __init__(self, api_client, modulo_id, lesson_data=None, parent=None, initial_order=1, taken_orders=None):
         super().__init__(parent)
         self.api_client = api_client
         self.modulo_id = modulo_id
         self.lesson_data = lesson_data
+        self.initial_order = initial_order
+        self.taken_orders = taken_orders if taken_orders is not None else []
         self.ejercicios = []
         self.pending_exercises = []  # <--- Ejercicios en memoria (staging)
+        
         self.setWindowTitle("Editar Lección" if lesson_data else "Nueva Lección")
         self.setMinimumSize(800, 700)
         self.setup_ui()
@@ -168,6 +172,8 @@ class LessonDialog(QDialog):
             # Si tiene ejercicios, cargarlos después de un pequeño delay
             if lesson_data.get("tiene_ejercicios", False):
                 QTimer.singleShot(100, self.cargar_ejercicios)
+        else:
+            self.orden_input.setValue(self.initial_order)
 
     def setup_ui(self):
         self.setStyleSheet(
@@ -175,11 +181,55 @@ class LessonDialog(QDialog):
             QDialog {
                 background-color: #f8f9fa;
             }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox {
+            QLineEdit, QTextEdit, QComboBox {
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 13px;
+                background-color: white;
+            }
+            QSpinBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 13px;
+                background-color: white;
+            }
+            QSpinBox::up-button {
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 30px;
+                border-left: 1px solid #d1d5db;
+                border-bottom: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border-top-right-radius: 4px;
+            }
+            QSpinBox::down-button {
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 30px;
+                border-left: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border-bottom-right-radius: 4px;
+            }
+            QSpinBox::up-arrow {
+                image: none;
+                width: 0; height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-bottom: 6px solid #4b5563;
+                margin-top: 2px;
+            }
+            QSpinBox::down-arrow {
+                image: none;
+                width: 0; height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid #4b5563;
+                margin-bottom: 2px;
+            }
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+                background-color: #e5e7eb;
             }
             QGroupBox {
                 font-weight: bold;
@@ -193,12 +243,43 @@ class LessonDialog(QDialog):
                 left: 10px;
                 padding: 0 5px 0 5px;
             }
+            QCheckBox {
+                font-size: 13px;
+                color: #2c3e50;
+                spacing: 10px;
+            }
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+                background-color: #ffffff;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #4361ee;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #4361ee;
+                border: 1px solid #4361ee;
+            }
         """
         )
 
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Usar ScrollArea para que quepan todos los campos y botones
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background-color: transparent;")
+        
+        container = QWidget()
+        container.setStyleSheet("background-color: transparent;")
+        layout = QVBoxLayout(container)
         layout.setSpacing(15)
-        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setContentsMargins(30, 30, 30, 10)
 
         # Título
         title = QLabel(
@@ -221,7 +302,8 @@ class LessonDialog(QDialog):
         # Orden
         self.orden_input = QSpinBox()
         self.orden_input.setMinimum(1)
-        self.orden_input.setMaximum(100)
+        self.orden_input.setMaximum(999)
+        self.orden_input.setFixedWidth(120)
         self.orden_input.setValue(1)
         form_layout.addRow("Orden:", self.orden_input)
 
@@ -330,47 +412,52 @@ class LessonDialog(QDialog):
 
         # Inicialmente oculto si no tiene ejercicios
         self.exercises_group.setVisible(False)
+        
+        scroll.setWidget(container)
+        main_layout.addWidget(scroll)
 
-        # Botones
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        # --- BOTONES (FUERA DEL SCROLL PARA VISIBILIDAD) ---
+        button_container = QFrame()
+        button_container.setFixedHeight(85)
+        button_container.setObjectName("dialogButtons")
+        button_container.setStyleSheet("""
+            #dialogButtons {
+                background-color: #ffffff;
+                border-top: 1px solid #e5e7eb;
+            }
+        """)
+        
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(30, 0, 30, 0)
+        button_layout.setSpacing(15)
+        
+        # Botón Cancelar
+        self.cancel_btn = QPushButton("Cancelar")
+        self.cancel_btn.setFixedHeight(45)
+        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel_btn.setStyleSheet(
+            StyleHelper.button_secondary() + 
+            "QPushButton { border-radius: 22px; padding: 0 30px; background-color: #ef4444; color: white; }" +
+            "QPushButton:hover { background-color: #dc2626; }"
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Guardar Lección")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
-
-        for btn in [
-            buttons.button(QDialogButtonBox.StandardButton.Ok),
-            buttons.button(QDialogButtonBox.StandardButton.Cancel),
-        ]:
-            btn.setStyleSheet(
-                """
-                QPushButton {
-                    padding: 10px 30px;
-                    border-radius: 25px;
-                    font-weight: bold;
-                    font-size: 13px;
-                    min-width: 120px;
-                }
-            """
-            )
-
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setStyleSheet(
-            """
-            background-color: #3498db;
-            color: white;
-        """
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        # Botón Guardar
+        self.save_btn = QPushButton("Guardar Lección")
+        self.save_btn.setFixedHeight(45)
+        self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.save_btn.setStyleSheet(
+            StyleHelper.button_primary() + 
+            "QPushButton { border-radius: 22px; padding: 0 40px; background-color: #4361ee; color: white; }" +
+            "QPushButton:hover { background-color: #3f37c9; }"
         )
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setStyleSheet(
-            """
-            background-color: #95a5a6;
-            color: white;
-        """
-        )
-
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-
-        layout.addWidget(buttons)
+        self.save_btn.clicked.connect(self.accept)
+        
+        button_layout.addStretch()
+        button_layout.addWidget(self.cancel_btn)
+        button_layout.addWidget(self.save_btn)
+        
+        main_layout.addWidget(button_container)
 
     def on_ejercicios_changed(self, state):
         """Mostrar/ocultar sección de ejercicios"""
@@ -550,10 +637,20 @@ class LessonDialog(QDialog):
 
     def get_data(self):
         """Obtener datos del formulario"""
+        order_val = self.orden_input.value()
+        
+        # Validación de orden duplicado
+        # Si estamos editando y el orden no cambió respecto al original, saltar validación
+        orig_order = self.lesson_data.get('orden') if self.lesson_data else None
+        
+        if order_val != orig_order and order_val in self.taken_orders:
+            QMessageBox.warning(self, "Orden duplicado", f"El orden {order_val} ya está siendo usado por otra lección en este módulo.")
+            return None
+
         return {
             "titulo": self.titulo_input.text().strip(),
             "contenido": self.editor.toHtml(),
-            "orden": self.orden_input.value(),
+            "orden": order_val,
             "tiene_editor_codigo": self.editor_check.isChecked(),
             "tiene_ejercicios": self.ejercicios_check.isChecked(),
             "estado": self.estado_combo.currentText(),
@@ -771,8 +868,11 @@ class LessonsView(QWidget):
         result = self.api_client.get_lecciones(modulo_id, force_refresh=force_refresh)
         if result["success"]:
             data = result.get("data", [])
+            # Manejar tanto lista simple como respuesta paginada de Laravel
             if isinstance(data, list):
                 self.lecciones = data
+            elif isinstance(data, dict) and "data" in data:
+                self.lecciones = data["data"]
             else:
                 self.lecciones = []
             self.actualizar_tabla(self.lecciones)
@@ -866,7 +966,19 @@ class LessonsView(QWidget):
             QMessageBox.warning(self, "Aviso", "Selecciona un módulo primero")
             return
 
-        dialog = LessonDialog(self.api_client, self.modulo_actual["id"], parent=self)
+        # Calcular siguiente orden de forma robusta
+        orders = []
+        for l in self.lecciones:
+            val = l.get('orden')
+            if val is not None:
+                try:
+                    orders.append(int(val))
+                except (ValueError, TypeError):
+                    continue
+                
+        next_order = max(orders) + 1 if orders else 1
+
+        dialog = LessonDialog(self.api_client, self.modulo_actual["id"], lesson_data=None, parent=self, initial_order=next_order, taken_orders=orders)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             if data is None:
@@ -896,7 +1008,10 @@ class LessonsView(QWidget):
         if not self.modulo_actual:
             return
 
-        dialog = LessonDialog(self.api_client, self.modulo_actual["id"], leccion, self)
+        # Obtener órdenes ocupados excluyendo la lección actual
+        orders = [l.get('orden', 0) for l in self.lecciones if l.get('id') != leccion.get('id')]
+
+        dialog = LessonDialog(self.api_client, self.modulo_actual["id"], lesson_data=leccion, parent=self, taken_orders=orders)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
             result = self.api_client.update_leccion(
