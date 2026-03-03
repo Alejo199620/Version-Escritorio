@@ -554,13 +554,13 @@ class UserDialog(QDialog):
                 color: #4b5563;
                 font-weight: 600;
             }
-            QLabel.error {
+            QLabel[class="error"] {
                 color: #ef4444;
                 font-size: 12px;
                 font-weight: 500;
                 margin-bottom: 8px;
             }
-            QLabel.success {
+            QLabel[class="success"] {
                 color: #22c55e;
                 font-size: 12px;
                 font-weight: 500;
@@ -596,18 +596,18 @@ class UserDialog(QDialog):
             }
             
             /* Estilos para campos válidos e inválidos */
-            QLineEdit.valid {
+            QLineEdit[class="valid"] {
                 border: 2px solid #22c55e !important;
                 background-color: #f0fdf4;
             }
-            QLineEdit.invalid {
+            QLineEdit[class="invalid"] {
                 border: 2px solid #ef4444 !important;
                 background-color: #fef2f2;
             }
-            QLineEdit.valid:focus {
+            QLineEdit[class="valid"]:focus {
                 border: 2px solid #16a34a !important;
             }
-            QLineEdit.invalid:focus {
+            QLineEdit[class="invalid"]:focus {
                 border: 2px solid #dc2626 !important;
             }
             """
@@ -783,7 +783,7 @@ class UserDialog(QDialog):
             err_label = QLabel("")
             err_label.setProperty("class", "error")
             err_label.setWordWrap(True)
-            err_label.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: 500;")
+            # Eliminamos el setStyleSheet estático que forzaba el rojo
             field_container.addWidget(err_label)
 
             return field, err_label, field_container
