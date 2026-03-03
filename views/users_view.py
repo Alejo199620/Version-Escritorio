@@ -88,7 +88,6 @@ class AvatarSelector(QDialog):
                 border-radius: 6px;
                 font-weight: bold;
                 border: none;
-                transition: all 0.3s ease;
             }
             QPushButton#selectBtn {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -663,35 +662,106 @@ class UserDialog(QDialog):
         layout.addSpacing(15)
 
         # Campos del formulario
-        def create_field(label_text, placeholder, is_password=False):
+        def create_field(label_text, placeholder, is_password=False, with_toggle=False):
             field_container = QVBoxLayout()
             field_container.setSpacing(4)
             label = QLabel(label_text)
             field_container.addWidget(label)
 
-            field = QLineEdit()
-            field.setPlaceholderText(placeholder)
-            field.setStyleSheet("""
-                QLineEdit {
-                    background-color: #ffffff;
-                    color: #111827;
-                    border: 1px solid #d1d5db;
-                    border-radius: 8px;
-                    padding: 12px 16px;
-                    font-size: 14px;
-                }
-                QLineEdit:focus {
-                    border: 2px solid #4361ee;
-                }
-            """)
-            if is_password:
+            # Contenedor para el input y el botón toggle (si aplica)
+            if is_password and with_toggle:
+                input_wrapper = QHBoxLayout()
+                input_wrapper.setSpacing(5)
+                
+                field = QLineEdit()
+                field.setPlaceholderText(placeholder)
                 field.setEchoMode(QLineEdit.EchoMode.Password)
+                field.setStyleSheet("""
+                    QLineEdit {
+                        background-color: #ffffff;
+                        color: #111827;
+                        border: 1px solid #d1d5db;
+                        border-radius: 8px;
+                        padding: 12px 16px;
+                        font-size: 14px;
+                    }
+                    QLineEdit:focus {
+                        border: 2px solid #4361ee;
+                    }
+                """)
+                
+                # Botón toggle
+                toggle_btn = QPushButton()
+                toggle_btn.setCheckable(True)
+                toggle_btn.setFixedSize(45, 45)
+                toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                toggle_btn.setText("👁")
+                toggle_btn.setToolTip("Mostrar contraseña")
+                toggle_btn.setStyleSheet("""
+                    QPushButton {
+                        border: 1px solid #d1d5db;
+                        background-color: #ffffff;
+                        border-radius: 8px;
+                        font-size: 18px;
+                        color: #6b7280;
+                    }
+                    QPushButton:hover {
+                        background-color: #f3f4f6;
+                        border: 1px solid #9ca3af;
+                        color: #374151;
+                    }
+                    QPushButton:checked {
+                        background-color: #e5e7eb;
+                        border: 1px solid #4361ee;
+                        color: #1f2937;
+                    }
+                """)
+                
+                def toggle_visibility(checked):
+                    if checked:
+                        field.setEchoMode(QLineEdit.EchoMode.Normal)
+                        toggle_btn.setText("🔒")
+                        toggle_btn.setToolTip("Ocultar contraseña")
+                    else:
+                        field.setEchoMode(QLineEdit.EchoMode.Password)
+                        toggle_btn.setText("👁")
+                        toggle_btn.setToolTip("Mostrar contraseña")
+                
+                toggle_btn.toggled.connect(toggle_visibility)
+                
+                input_wrapper.addWidget(field, 1)
+                input_wrapper.addWidget(toggle_btn)
+                
+                # Crear un widget contenedor para el layout horizontal
+                wrapper_widget = QWidget()
+                wrapper_widget.setLayout(input_wrapper)
+                field_container.addWidget(wrapper_widget)
+            else:
+                field = QLineEdit()
+                field.setPlaceholderText(placeholder)
+                field.setStyleSheet("""
+                    QLineEdit {
+                        background-color: #ffffff;
+                        color: #111827;
+                        border: 1px solid #d1d5db;
+                        border-radius: 8px;
+                        padding: 12px 16px;
+                        font-size: 14px;
+                    }
+                    QLineEdit:focus {
+                        border: 2px solid #4361ee;
+                    }
+                """)
+                if is_password:
+                    field.setEchoMode(QLineEdit.EchoMode.Password)
+                field_container.addWidget(field)
+
             field.textChanged.connect(self.on_text_changed)
-            field_container.addWidget(field)
 
             err_label = QLabel("")
             err_label.setProperty("class", "error")
             err_label.setWordWrap(True)
+            err_label.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: 500;")
             field_container.addWidget(err_label)
 
             return field, err_label, field_container
@@ -711,7 +781,7 @@ class UserDialog(QDialog):
         # Password (solo para nuevos)
         if not self.user_data:
             self.password_input, self.password_error, pass_cont = create_field(
-                "Contraseña", "Mínimo 8 caracteres..."
+                "Contraseña", "Mínimo 8 caracteres...", is_password=True, with_toggle=True
             )
             layout.addLayout(pass_cont)
 
@@ -730,12 +800,25 @@ class UserDialog(QDialog):
             self.password_strength.setRange(0, 100)
             self.password_strength.setValue(0)
             self.password_strength.setTextVisible(False)
+            self.password_strength.setStyleSheet("""
+                QProgressBar {
+                    border: none;
+                    background-color: #e5e7eb;
+                    height: 6px;
+                    border-radius: 3px;
+                    margin: 0px;
+                }
+                QProgressBar::chunk {
+                    background-color: #3b82f6;
+                    border-radius: 3px;
+                }
+            """)
             security_layout.addWidget(self.password_strength)
 
             layout.addLayout(security_layout)
 
-            self.password_confirm_input, self.password_confirm_error, conf_cont = (
-                create_field("Confirmar Contraseña", "Repite la contraseña")
+            self.password_confirm_input, self.password_confirm_error, conf_cont = create_field(
+                "Confirmar Contraseña", "Repite la contraseña", is_password=True, with_toggle=True
             )
             layout.addLayout(conf_cont)
 
@@ -1032,7 +1115,7 @@ class UserDialog(QDialog):
         self.style().polish(self.password_error)
 
     def update_password_strength(self):
-        """Actualizar barra de fortaleza"""
+        """Actualizar barra de fortaleza con colores más descriptivos"""
         password = self.password_input.text()
         strength = 0
 
@@ -1049,21 +1132,33 @@ class UserDialog(QDialog):
 
         # Cambiar color según fortaleza
         if strength <= 25:
-            self.password_strength.setStyleSheet(
-                "QProgressBar::chunk { background-color: #e74c3c; }"
-            )
+            color = "#ef4444"  # Rojo
+            text = "Muy débil"
         elif strength <= 50:
-            self.password_strength.setStyleSheet(
-                "QProgressBar::chunk { background-color: #f39c12; }"
-            )
+            color = "#f97316"  # Naranja
+            text = "Débil"
         elif strength <= 75:
-            self.password_strength.setStyleSheet(
-                "QProgressBar::chunk { background-color: #3498db; }"
-            )
+            color = "#eab308"  # Amarillo
+            text = "Media"
         else:
-            self.password_strength.setStyleSheet(
-                "QProgressBar::chunk { background-color: #2ecc71; }"
-            )
+            color = "#22c55e"  # Verde
+            text = "Fuerte"
+
+        self.password_strength.setStyleSheet(f"""
+            QProgressBar {{
+                border: none;
+                background-color: #e5e7eb;
+                height: 6px;
+                border-radius: 3px;
+                margin: 0px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {color};
+                border-radius: 3px;
+            }}
+        """)
+        
+        self.strength_label.setText(f"Nivel de seguridad: {text}")
 
     def validate_password_confirm(self, show_error=True):
         """Validar confirmación de contraseña"""
@@ -1201,7 +1296,6 @@ class UserDialog(QDialog):
             data["password"] = self.password_input.text()
 
         return data
-
 
 class UsersView(QWidget):
     def __init__(self, api_client):
