@@ -77,7 +77,7 @@ class ToastNotification(QFrame):
     def _apply_style(self, type):
         if type == self.SUCCESS:
             self.icon_label.setText("✓")
-            self.message_label.setStyleSheet("color: white;")
+            self.message_label.setStyleSheet("color: white; background-color: transparent;")
             self.icon_label.setStyleSheet("color: white; background-color: rgba(0,0,0,0.1); border-radius: 12px; min-width: 24px; min-height: 24px;")
             self.close_btn.setStyleSheet("QPushButton { background-color: transparent; color: white; border: none; font-size: 20px; font-weight: bold; }")
             self.setStyleSheet("""
@@ -90,7 +90,7 @@ class ToastNotification(QFrame):
             """)
         elif type == self.ERROR:
             self.icon_label.setText("!")
-            self.message_label.setStyleSheet("color: white;")
+            self.message_label.setStyleSheet("color: white; background-color: transparent;")
             self.icon_label.setStyleSheet("color: white; background-color: rgba(0,0,0,0.1); border-radius: 12px; min-width: 24px; min-height: 24px;")
             self.close_btn.setStyleSheet("QPushButton { background-color: transparent; color: white; border: none; font-size: 20px; font-weight: bold; }")
             self.setStyleSheet("""
@@ -103,7 +103,7 @@ class ToastNotification(QFrame):
             """)
         elif type == self.SAVING:
             self.icon_label.setText("⏳")
-            self.message_label.setStyleSheet("color: #1f2937;")
+            self.message_label.setStyleSheet("color: #1f2937; background-color: transparent;")
             self.icon_label.setStyleSheet("color: #4a90e2; background-color: rgba(0,0,0,0.05); border-radius: 12px; min-width: 24px; min-height: 24px;")
             self.close_btn.setStyleSheet("QPushButton { background-color: transparent; color: #9ca3af; border: none; font-size: 20px; font-weight: bold; }")
             self.setStyleSheet("""
@@ -115,7 +115,7 @@ class ToastNotification(QFrame):
             """)
         else: # INFO
             self.icon_label.setText("ℹ")
-            self.message_label.setStyleSheet("color: white;")
+            self.message_label.setStyleSheet("color: white; background-color: transparent;")
             self.icon_label.setStyleSheet("color: white; background-color: rgba(0,0,0,0.1); border-radius: 12px; min-width: 24px; min-height: 24px;")
             self.close_btn.setStyleSheet("QPushButton { background-color: transparent; color: white; border: none; font-size: 20px; font-weight: bold; }")
             self.setStyleSheet("""
