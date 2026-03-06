@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QDoubleSpinBox,
     QTabWidget,
+    QTabBar,
     QToolButton,
     QMenu,
     QApplication,
@@ -68,9 +69,16 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# CLASE DE UTILIDADES PARA ESTILOS
+# CLASE DE UTILIDADES PARA ESTILOS Y COMPONENTES BASE
 # ============================================================================
 
+class NoScrollTabBar(QTabBar):
+    """
+    QTabBar personalizado que ignora los eventos de scroll con la rueda del ratón,
+    evitando que las pestañas cambien accidentalmente al hacer scroll en la vista.
+    """
+    def wheelEvent(self, event):
+        event.ignore()
 
 # Estilos centralizados en views.styles.py
 
@@ -1277,6 +1285,7 @@ class ModuleDetailView(QWidget):
 
         # Pestañas
         self.tabs = QTabWidget()
+        self.tabs.setTabBar(NoScrollTabBar())
         self.tabs.setStyleSheet(
             """
             QTabWidget::pane {
