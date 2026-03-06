@@ -224,11 +224,56 @@ class ExerciseDialog(QDialog):
             """
             QDialog { background-color: #f0f0f0; }
             QLabel { font-size: 14px; }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+            QLineEdit, QTextEdit, QComboBox, QDoubleSpinBox {
                 padding: 5px;
                 border: 1px solid #ccc;
                 border-radius: 3px;
                 background-color: white;
+            }
+            QSpinBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 13px;
+                background-color: white;
+            }
+            QSpinBox::up-button {
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 30px;
+                border-left: 1px solid #d1d5db;
+                border-bottom: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border-top-right-radius: 4px;
+            }
+            QSpinBox::down-button {
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 30px;
+                border-left: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border-bottom-right-radius: 4px;
+            }
+            QSpinBox::up-arrow {
+                image: none;
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-bottom: 6px solid #4b5563;
+                margin-top: 2px;
+            }
+            QSpinBox::down-arrow {
+                image: none;
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid #4b5563;
+                margin-bottom: 2px;
+            }
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+                background-color: #e5e7eb;
             }
         """
         )
