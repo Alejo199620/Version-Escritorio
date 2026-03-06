@@ -314,6 +314,8 @@ class APIClient(QObject):
     # ============= MÉTODO BASE ULTRA OPTIMIZADO =============
     def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Método base ULTRA RÁPIDO"""
+        silent_request = kwargs.pop("silent", False)
+        
         url = (
             f"{self.base_url}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
         )
@@ -329,7 +331,7 @@ class APIClient(QObject):
         no_cache = method.upper() != "GET"
 
         try:
-            if not no_cache:
+            if not no_cache and not silent_request:
                 self.request_started.emit()
 
             response = self.session.request(method, url, **kwargs)
@@ -342,7 +344,7 @@ class APIClient(QObject):
         except Exception as e:
             return {"success": False, "error": str(e)}
         finally:
-            if not no_cache:
+            if not no_cache and not silent_request:
                 self.request_finished.emit()
 
     def _handle_response_fast(self, response: requests.Response) -> Dict[str, Any]:
@@ -438,15 +440,17 @@ class APIClient(QObject):
         data: Dict = None,
         json: Dict = None,
         invalidate_cache: list = None,
+        silent: bool = False,
     ) -> Dict[str, Any]:
-        result = self._request("POST", endpoint, data=data, json=json)
+        result = self._request("POST", endpoint, data=data, json=json, silent=silent)
 
         if result.get("success", False):
-            if invalidate_cache:
-                for cache_type in invalidate_cache:
-                    self.invalidate_cache_type(cache_type)
-            else:
-                self._auto_invalidate_from_endpoint(endpoint)
+            if not silent:
+                if invalidate_cache:
+                    for cache_type in invalidate_cache:
+                        self.invalidate_cache_type(cache_type)
+                else:
+                    self._auto_invalidate_from_endpoint(endpoint)
 
         return result
 
@@ -456,15 +460,17 @@ class APIClient(QObject):
         data: Dict = None,
         json: Dict = None,
         invalidate_cache: list = None,
+        silent: bool = False,
     ) -> Dict[str, Any]:
-        result = self._request("PUT", endpoint, data=data, json=json)
+        result = self._request("PUT", endpoint, data=data, json=json, silent=silent)
 
         if result.get("success", False):
-            if invalidate_cache:
-                for cache_type in invalidate_cache:
-                    self.invalidate_cache_type(cache_type)
-            else:
-                self._auto_invalidate_from_endpoint(endpoint)
+            if not silent:
+                if invalidate_cache:
+                    for cache_type in invalidate_cache:
+                        self.invalidate_cache_type(cache_type)
+                else:
+                    self._auto_invalidate_from_endpoint(endpoint)
 
         return result
 
@@ -474,27 +480,30 @@ class APIClient(QObject):
         data: Dict = None,
         json: Dict = None,
         invalidate_cache: list = None,
+        silent: bool = False,
     ) -> Dict[str, Any]:
-        result = self._request("PATCH", endpoint, data=data, json=json)
+        result = self._request("PATCH", endpoint, data=data, json=json, silent=silent)
 
         if result.get("success", False):
-            if invalidate_cache:
-                for cache_type in invalidate_cache:
-                    self.invalidate_cache_type(cache_type)
-            else:
-                self._auto_invalidate_from_endpoint(endpoint)
+            if not silent:
+                if invalidate_cache:
+                    for cache_type in invalidate_cache:
+                        self.invalidate_cache_type(cache_type)
+                else:
+                    self._auto_invalidate_from_endpoint(endpoint)
 
         return result
 
-    def delete(self, endpoint: str, invalidate_cache: list = None) -> Dict[str, Any]:
-        result = self._request("DELETE", endpoint)
+    def delete(self, endpoint: str, invalidate_cache: list = None, silent: bool = False) -> Dict[str, Any]:
+        result = self._request("DELETE", endpoint, silent=silent)
 
         if result.get("success", False):
-            if invalidate_cache:
-                for cache_type in invalidate_cache:
-                    self.invalidate_cache_type(cache_type)
-            else:
-                self._auto_invalidate_from_endpoint(endpoint)
+            if not silent:
+                if invalidate_cache:
+                    for cache_type in invalidate_cache:
+                        self.invalidate_cache_type(cache_type)
+                else:
+                    self._auto_invalidate_from_endpoint(endpoint)
 
         return result
 

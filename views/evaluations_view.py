@@ -842,7 +842,7 @@ class EvaluationsView(QWidget):
 
     def _on_data_changed(self, data_type: str):
         """Manejador para actualizaciones en tiempo real"""
-        if data_type in ["preguntas", "evaluaciones", "modulos"]:
+        if data_type in ["evaluaciones", "modulos"]:
             if self.modulo_actual:
                 self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
             elif data_type == "modulos":
