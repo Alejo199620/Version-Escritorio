@@ -38,44 +38,6 @@ from utils.paths import resource_path
 logger = logging.getLogger(__name__)
 
 
-class LinkDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Insertar Enlace")
-        self.setFixedSize(400, 150)
-        self.setup_ui()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        # URL
-        url_layout = QHBoxLayout()
-        url_layout.addWidget(QLabel("URL:"))
-        self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("https://ejemplo.com")
-        url_layout.addWidget(self.url_input)
-        layout.addLayout(url_layout)
-
-        # Texto
-        text_layout = QHBoxLayout()
-        text_layout.addWidget(QLabel("Texto:"))
-        self.text_input = QLineEdit()
-        self.text_input.setPlaceholderText("Texto del enlace")
-        text_layout.addWidget(self.text_input)
-        layout.addLayout(text_layout)
-
-        # Botones
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def get_data(self):
-        return {"url": self.url_input.text(), "text": self.text_input.text()}
-
-
 class ImageResizeDialog(QDialog):
     def __init__(self, current_w, current_h, parent=None):
         super().__init__(parent)
@@ -321,11 +283,6 @@ class RichTextEditor(QWidget):
         toolbar_layout.addSpacing(10)
 
         # Insertar
-        self.link_btn = QPushButton("🔗")
-        self.link_btn.setFixedWidth(40)
-        self.link_btn.setToolTip("Insertar enlace")
-        self.link_btn.clicked.connect(self.insert_link)
-        toolbar_layout.addWidget(self.link_btn)
 
         self.image_btn = QPushButton("🖼️")
         self.image_btn.setFixedWidth(40)
@@ -453,13 +410,6 @@ class RichTextEditor(QWidget):
         cursor = self.editor.textCursor()
         cursor.insertList(QTextListFormat.Style.ListDecimal)
 
-    def insert_link(self):
-        dialog = LinkDialog(self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            data = dialog.get_data()
-            if data["url"] and data["text"]:
-                html = f'<a href="{data["url"]}">{data["text"]}</a>'
-                self.editor.insertHtml(html)
 
     def insert_image(self):
         file_path, _ = QFileDialog.getOpenFileName(
