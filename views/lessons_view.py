@@ -165,7 +165,7 @@ class LessonDialog(QDialog):
         self.pending_exercises = []  # <--- Ejercicios en memoria (staging)
         
         self.setWindowTitle("Editar Lección" if lesson_data else "Nueva Lección")
-        self.setMinimumSize(800, 700)
+        self.setMinimumSize(1000, 800)
         self.setup_ui()
 
         if lesson_data:
@@ -316,7 +316,7 @@ class LessonDialog(QDialog):
         layout.addWidget(content_label)
 
         self.editor = RichTextEditor()
-        self.editor.setMinimumHeight(200)
+        self.editor.setMinimumHeight(450)
         layout.addWidget(self.editor, 1)
 
         # Opciones

@@ -833,8 +833,8 @@ class ModuleDialog(QDialog):
         self.modulos_existentes = []
 
         self.setWindowTitle("Editar Módulo" if modulo_data else "Nuevo Módulo")
-        self.setMinimumSize(800, 600)
-        self.resize(800, 600)
+        self.setMinimumSize(1000, 800)
+        self.resize(1000, 800)
         self.setModal(True)
         self.setWindowFlags(
             self.windowFlags() 
@@ -985,9 +985,9 @@ class ModuleDialog(QDialog):
         layout.addWidget(desc_label)
 
         self.descripcion_editor = RichTextEditor()
-        self.descripcion_editor.setMinimumHeight(300)
+        self.descripcion_editor.setMinimumHeight(450)
         self.descripcion_editor.editor.textChanged.connect(self._validar_campos)
-        layout.addWidget(self.descripcion_editor)
+        layout.addWidget(self.descripcion_editor, 1)
 
         # --- OPCIONES ---
         options_group = QGroupBox("Opciones del Módulo")
