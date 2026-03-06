@@ -601,6 +601,11 @@ class ExercisesView(QWidget):
         table_layout.addWidget(self.table)
 
         self.stack.addWidget(table_container)
+        
+        # --- PÁGINA 2: PLACEHOLDER VACÍO ---
+        self.empty_placeholder = self._create_empty_placeholder()
+        self.stack.addWidget(self.empty_placeholder)
+
         layout.addWidget(self.stack)
 
         self.setLayout(layout)
@@ -629,6 +634,36 @@ class ExercisesView(QWidget):
 
         subtext = QLabel("Use los selectores superiores para comenzar")
         subtext.setStyleSheet("color: #94a3b8; font-size: 14px;")
+        subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtext)
+
+        return frame
+
+    def _create_empty_placeholder(self) -> QFrame:
+        """Crea la vista para cuando no hay ejercicios en la lección"""
+        frame = QFrame()
+        frame.setStyleSheet(
+            "background-color: white; border-radius: 12px; border: 1px dashed #e2e8f0;"
+        )
+
+        layout = QVBoxLayout(frame)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(15)
+
+        icon = QLabel("📭")
+        icon.setFont(QFont("Segoe UI", 64))
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+
+        text = QLabel("No se han agregado ejercicios a esta lección")
+        text.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        text.setStyleSheet("color: #64748b;")
+        text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(text)
+
+        subtext = QLabel("Ve a la sección 'Lecciones', edita esta lección y agrega los ejercicios desde allí.")
+        subtext.setStyleSheet("color: #94a3b8; font-size: 15px;")
+        subtext.setWordWrap(True)
         subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtext)
 
@@ -748,6 +783,11 @@ class ExercisesView(QWidget):
             self.actualizar_tabla([])
 
     def actualizar_tabla(self, ejercicios):
+        if not ejercicios and self.leccion_actual:
+            self.stack.setCurrentIndex(2)
+            return
+            
+        self.stack.setCurrentIndex(1)
         self.table.setUpdatesEnabled(False)
         self.table.setRowCount(len(ejercicios))
         self.table.setStyleSheet(
