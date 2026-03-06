@@ -1016,7 +1016,7 @@ class APIClient(QObject):
         )
 
     def create_pregunta(
-        self, modulo_id: int, evaluacion_id: int, data: Dict
+        self, modulo_id: int, evaluacion_id: int, data: Dict, silent: bool = False
     ) -> Dict[str, Any]:
         if not data.get("pregunta"):
             return {"success": False, "error": "Pregunta requerida"}
@@ -1029,24 +1029,24 @@ class APIClient(QObject):
         return self.post(
             f"/admin/modulos/{modulo_id}/evaluacion/{evaluacion_id}/preguntas",
             json=api_data,
-            invalidate_cache=["evaluaciones"],
+            invalidate_cache=[] if silent else ["evaluaciones"],
         )
 
     def update_pregunta(
-        self, modulo_id: int, evaluacion_id: int, pregunta_id: int, data: Dict
+        self, modulo_id: int, evaluacion_id: int, pregunta_id: int, data: Dict, silent: bool = False
     ) -> Dict[str, Any]:
         return self.put(
             f"/admin/modulos/{modulo_id}/evaluacion/{evaluacion_id}/preguntas/{pregunta_id}",
             json=data,
-            invalidate_cache=["evaluaciones"],
+            invalidate_cache=[] if silent else ["evaluaciones"],
         )
 
     def delete_pregunta(
-        self, modulo_id: int, evaluacion_id: int, pregunta_id: int
+        self, modulo_id: int, evaluacion_id: int, pregunta_id: int, silent: bool = False
     ) -> Dict[str, Any]:
         return self.delete(
             f"/admin/modulos/{modulo_id}/evaluacion/{evaluacion_id}/preguntas/{pregunta_id}",
-            invalidate_cache=["evaluaciones"],
+            invalidate_cache=[] if silent else ["evaluaciones"],
         )
 
     def update_pregunta_opciones(

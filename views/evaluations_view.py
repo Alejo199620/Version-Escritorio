@@ -716,13 +716,14 @@ class EvaluationsView(QWidget):
             data = dialog.get_data()
 
             result = self.api_client.create_pregunta(
-                self.modulo_actual.get("id"), self.evaluacion_actual.get("id"), data
+                self.modulo_actual.get("id"), self.evaluacion_actual.get("id"), data, silent=True
             )
 
             if result["success"]:
-                # Tras añadir, redistribuir puntos antes de refrescar
-                self._recalcular_distribucion_puntos()
+                # Traer la nueva tabla de red para obtener las ids.
                 self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
+                # Redisparar la actualización a la nueva tabla, repintar optimísticamente y correr el backend en background.
+                self._recalcular_distribucion_puntos()
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
@@ -769,14 +770,14 @@ class EvaluationsView(QWidget):
                 self.modulo_actual.get("id"),
                 self.evaluacion_actual.get("id"),
                 pregunta["id"],
+                silent=True
             )
 
             if result["success"]:
-                # Filtramos la pregunta actual removiéndola en un mock momentáneo de la lista original
+                # Eliminación instantánea de RAM
                 self.preguntas = [p for p in self.preguntas if p.get("id") != pregunta["id"]]
-                # Redistribuir con las restantes
+                # Redistribuir con las restantes dictaminando nueva interfaz en <10ms y correr el resto en background
                 self._recalcular_distribucion_puntos()
-                self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
@@ -792,19 +793,33 @@ class EvaluationsView(QWidget):
         modulo_id = self.modulo_actual.get("id")
         eval_id = self.evaluacion_actual.get("id")
         
-        # Iterar sobre las preguntas para actualizar su valor
-        # Idealmente el backend debería tener un endpoint batch, por ahora iteramos.
+        # Actualización de la RAM para que el usuario la vea ya reflejada optimísticamente
         for pre in self.preguntas:
-            p_data = {
-                "pregunta": pre.get("pregunta"),
-                "tipo": pre.get("tipo"),
-                "estado": pre.get("estado", "activo"),
-                "puntos": valor_equitativo
-            }
-            # Se mandan las opciones actuales sin modificar para no perderlas
-            if "opciones" in pre:
-                p_data["opciones"] = pre["opciones"]
-            self.api_client.update_pregunta(modulo_id, eval_id, pre.get("id"), p_data)
+            pre["puntos"] = valor_equitativo
+            
+        # Repinte instantáneo
+        self.actualizar_tabla(self.preguntas)
+        
+        # Sub-rutina enviada a background thread para realizar N requests PUT sin trabarse
+        def _background_sync(preg_list, mod_id, ev_id, val_eq):
+            for p in preg_list:
+                p_data = {
+                    "pregunta": p.get("pregunta"),
+                    "tipo": p.get("tipo"),
+                    "estado": p.get("estado", "activo"),
+                    "puntos": val_eq
+                }
+                if "opciones" in p:
+                    p_data["opciones"] = p["opciones"]
+                self.api_client.update_pregunta(mod_id, ev_id, p.get("id"), p_data, silent=True)
+
+        import threading
+        hilo_sync = threading.Thread(
+            target=_background_sync, 
+            args=(list(self.preguntas), modulo_id, eval_id, valor_equitativo)
+        )
+        hilo_sync.daemon = True
+        hilo_sync.start()
 
 
     def _on_data_changed(self, data_type: str):
