@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QDialogButtonBox,
     QMessageBox,
+    QFileDialog,
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import (
@@ -25,6 +26,9 @@ from PyQt6.QtGui import (
     QAction,
 )
 import logging
+import base64
+import os
+import mimetypes
 from utils.paths import resource_path
 
 logger = logging.getLogger(__name__)
@@ -141,7 +145,7 @@ class RichTextEditor(QWidget):
             ]
         )
         self.size_combo.setEditable(True)
-        self.size_combo.setCurrentText("12")
+        self.size_combo.setCurrentText("14")
         self.size_combo.setFixedWidth(60)
         self.size_combo.currentTextChanged.connect(self.change_font_size)
         toolbar_layout.addWidget(self.size_combo)
@@ -246,6 +250,12 @@ class RichTextEditor(QWidget):
         self.image_btn.clicked.connect(self.insert_image)
         toolbar_layout.addWidget(self.image_btn)
 
+        self.file_btn = QPushButton("📎")
+        self.file_btn.setFixedWidth(40)
+        self.file_btn.setToolTip("Adjuntar archivo")
+        self.file_btn.clicked.connect(self.insert_file)
+        toolbar_layout.addWidget(self.file_btn)
+
         toolbar_layout.addStretch()
 
         layout.addWidget(toolbar)
@@ -267,6 +277,11 @@ class RichTextEditor(QWidget):
         # Conectar señales
         self.editor.selectionChanged.connect(self.update_format_buttons)
         self.editor.cursorPositionChanged.connect(self.update_format_buttons)
+
+        # Forzar el tamaño de fuente inicial
+        fmt = QTextCharFormat()
+        fmt.setFontPointSize(14)
+        self.editor.setCurrentCharFormat(fmt)
 
         layout.addWidget(self.editor)
 
@@ -361,15 +376,46 @@ class RichTextEditor(QWidget):
                 self.editor.insertHtml(html)
 
     def insert_image(self):
-        # Por ahora solo insertamos placeholder
-        self.editor.insertHtml(
-            '<img src="placeholder.jpg" alt="Imagen" style="max-width: 100%;">'
-        )
-        QMessageBox.information(
+        file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Info",
-            "En una versión completa podrías seleccionar imágenes de tu computadora",
+            "Seleccionar Imagen",
+            "",
+            "Imágenes (*.png *.jpg *.jpeg *.gif *.bmp *.webp)",
         )
+        if file_path:
+            try:
+                with open(file_path, "rb") as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+                
+                # Averiguar el tipo MIME simple
+                ext = file_path.lower().split('.')[-1]
+                mime_type = f"image/{ext}" if ext != 'jpg' else "image/jpeg"
+                
+                # Crear tag de imagen con base64 embebido
+                img_tag = f'<img src="data:{mime_type};base64,{encoded_string}" alt="Imagen incrustada" style="max-width: 100%;">'
+                
+                # Insertar en el editor
+                self.editor.insertHtml(img_tag)
+                self.editor.insertPlainText("\n") # Nueva línea después de la imagen
+            except Exception as e:
+                logger.error(f"Error al cargar la imagen: {e}")
+                QMessageBox.critical(self, "Error", "No se pudo cargar la imagen seleccionada.")
+
+    def insert_file(self):
+        """Adjuntar un archivo como enlace referenciado localmente"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Adjuntar Archivo",
+            "",
+            "Todos los archivos (*.*)",
+        )
+        if file_path:
+            file_name = os.path.basename(file_path)
+            # URL encode basico para espacios y caracteres localizados (idealmente urllib, pero simple)
+            safe_path = file_path.replace(" ", "%20")
+            html = f'<a href="file:///{safe_path}">📎 {file_name}</a>'
+            self.editor.insertHtml(html)
+            self.editor.insertPlainText(" ") # Espacio para continuar escribiendo
 
     def update_format_buttons(self):
         # Actualizar estado de los botones según el formato actual
