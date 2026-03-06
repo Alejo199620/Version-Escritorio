@@ -54,13 +54,12 @@ class EvaluationConfigDialog(QDialog):
         else:
             # Si no hay datos, establecer título por defecto
             self.titulo_input.setText(f"Evaluación del Módulo")
-            self.actualizar_resumen()
 
     def setup_ui(self):
         self.setStyleSheet(
             f"""
             QDialog {{ background-color: white; }}
-            QLineEdit, QComboBox, QSpinBox {{
+            QLineEdit, QComboBox {{
                 padding: 10px;
                 border: 2px solid #e9ecef;
                 border-radius: 8px;
@@ -72,6 +71,49 @@ class EvaluationConfigDialog(QDialog):
                 background-color: white;
             }}
             QLabel {{ font-size: 13px; color: #1e293b; }}
+            QSpinBox {{
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                font-size: 13px;
+                background-color: white;
+            }}
+            QSpinBox::up-button {{
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 30px;
+                border-left: 1px solid #d1d5db;
+                border-bottom: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border-top-right-radius: 8px;
+            }}
+            QSpinBox::down-button {{
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 30px;
+                border-left: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border-bottom-right-radius: 8px;
+            }}
+            QSpinBox::up-arrow {{
+                image: none;
+                width: 0; height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-bottom: 6px solid #4b5563;
+                margin-top: 2px;
+            }}
+            QSpinBox::down-arrow {{
+                image: none;
+                width: 0; height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid #4b5563;
+                margin-bottom: 2px;
+            }}
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+                background-color: #e5e7eb;
+            }}
         """
         )
 
@@ -91,33 +133,28 @@ class EvaluationConfigDialog(QDialog):
 
         self.titulo_input = QLineEdit()
         self.titulo_input.setPlaceholderText("Ej: Evaluación Final de Módulo")
-        self.titulo_input.textChanged.connect(self.actualizar_resumen)
         form_layout.addRow("Título de la Evaluación:", self.titulo_input)
 
         self.num_preguntas_input = QSpinBox()
         self.num_preguntas_input.setRange(1, 50)
         self.num_preguntas_input.setValue(10)
-        self.num_preguntas_input.valueChanged.connect(self.actualizar_resumen)
         form_layout.addRow("Número de Preguntas:", self.num_preguntas_input)
 
         self.tiempo_input = QSpinBox()
         self.tiempo_input.setRange(5, 180)
         self.tiempo_input.setValue(30)
         self.tiempo_input.setSuffix(" minutos")
-        self.tiempo_input.valueChanged.connect(self.actualizar_resumen)
         form_layout.addRow("Tiempo Límite:", self.tiempo_input)
 
         self.puntaje_input = QSpinBox()
         self.puntaje_input.setRange(1, 100)
         self.puntaje_input.setValue(70)
         self.puntaje_input.setSuffix("%")
-        self.puntaje_input.valueChanged.connect(self.actualizar_resumen)
         form_layout.addRow("Puntaje Mínimo:", self.puntaje_input)
 
         self.intentos_input = QSpinBox()
         self.intentos_input.setRange(1, 10)
         self.intentos_input.setValue(2)
-        self.intentos_input.valueChanged.connect(self.actualizar_resumen)
         form_layout.addRow("Intentos Máximos:", self.intentos_input)
 
         self.estado_combo = QComboBox()
@@ -126,18 +163,6 @@ class EvaluationConfigDialog(QDialog):
 
         layout.addLayout(form_layout)
 
-        # --- RESUMEN ---
-        self.resumen_card = QFrame()
-        self.resumen_card.setStyleSheet(
-            StyleHelper.card_style() + "background-color: #f8fafc;"
-        )
-        resumen_layout = QVBoxLayout(self.resumen_card)
-        self.resumen_label = QLabel()
-        self.resumen_label.setWordWrap(True)
-        self.resumen_label.setStyleSheet("color: #64748b; font-size: 12px;")
-        resumen_layout.addWidget(self.resumen_label)
-        layout.addWidget(self.resumen_card)
-
         # --- BOTONES ---
         layout.addStretch()
         buttons = QHBoxLayout()
@@ -145,7 +170,11 @@ class EvaluationConfigDialog(QDialog):
 
         cancel_btn = QPushButton("Cancelar")
         cancel_btn.setMinimumHeight(45)
-        cancel_btn.setStyleSheet(StyleHelper.button_danger())
+        cancel_btn.setStyleSheet(
+            StyleHelper.button_secondary() + 
+            "QPushButton { border-radius: 8px; padding: 0 30px; background-color: #ef4444; color: white; }" +
+            "QPushButton:hover { background-color: #dc2626; }"
+        )
         cancel_btn.clicked.connect(self.reject)
 
         save_btn = QPushButton("Guardar Configuración")
@@ -157,36 +186,6 @@ class EvaluationConfigDialog(QDialog):
         buttons.addWidget(cancel_btn)
         buttons.addWidget(save_btn)
         layout.addLayout(buttons)
-
-        # Conectar señales para actualizar resumen
-        # self.tiempo_input.valueChanged.connect(self.actualizar_resumen) # Already connected above
-        # self.puntaje_input.valueChanged.connect(self.actualizar_resumen) # Already connected above
-        # self.intentos_input.valueChanged.connect(self.actualizar_resumen) # Already connected above
-        # self.num_preguntas_input.valueChanged.connect(self.actualizar_resumen) # Already connected above
-
-        self.actualizar_resumen()
-
-    def actualizar_resumen(self):
-        """Actualizar el resumen de la configuración"""
-        titulo = self.titulo_input.text()
-        tiempo = self.tiempo_input.value()
-        puntaje = self.puntaje_input.value()
-        intentos = self.intentos_input.value()
-        preguntas = self.num_preguntas_input.value()
-
-        if not titulo:
-            titulo_display = "Evaluación sin título"
-        else:
-            titulo_display = f"**{titulo}**"
-
-        self.resumen_label.setText(
-            f"📝 **Resumen de la Configuración:**\n\n"
-            f"• Título: {titulo_display}\n"
-            f"• Número de preguntas: {preguntas}\n"
-            f"• Tiempo límite: {tiempo} minutos\n"
-            f"• Puntaje mínimo para aprobar: {puntaje}%\n"
-            f"• Intentos máximos permitidos: {intentos}"
-        )
 
     def load_config_data(self):
         """Cargar datos de configuración existente"""
@@ -211,8 +210,6 @@ class EvaluationConfigDialog(QDialog):
         index = self.estado_combo.findText(self.config_data.get("estado", "activo"))
         if index >= 0:
             self.estado_combo.setCurrentIndex(index)
-
-        self.actualizar_resumen()
 
     def get_data(self):
         """Obtener datos del formulario - AHORA INCLUYE TÍTULO"""

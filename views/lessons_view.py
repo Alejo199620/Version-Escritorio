@@ -29,6 +29,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor
 import logging
 
+from views.components.toast import ToastNotification
 from views.components.rich_text_editor import RichTextEditor
 from views.exercises_view import ExerciseDialog  # <-- IMPORTANTE: esta importación
 from utils.paths import resource_path
@@ -638,14 +639,6 @@ class LessonDialog(QDialog):
     def get_data(self):
         """Obtener datos del formulario"""
         order_val = self.orden_input.value()
-        
-        # Validación de orden duplicado
-        # Si estamos editando y el orden no cambió respecto al original, saltar validación
-        orig_order = self.lesson_data.get('orden') if self.lesson_data else None
-        
-        if order_val != orig_order and order_val in self.taken_orders:
-            QMessageBox.warning(self, "Orden duplicado", f"El orden {order_val} ya está siendo usado por otra lección en este módulo.")
-            return None
 
         return {
             "titulo": self.titulo_input.text().strip(),
@@ -698,6 +691,7 @@ class LessonsView(QWidget):
         self.lecciones = []
         self.modulo_actual = None
         self.setup_ui()
+        self.toast = ToastNotification(self)
         self.load_modulos()
 
         # Conectar señales para actualización en tiempo real
@@ -983,6 +977,9 @@ class LessonsView(QWidget):
             data = dialog.get_data()
             if data is None:
                 return
+                
+            self._desplazar_orden_lecciones(data["orden"])
+            
             result = self.api_client.create_leccion(self.modulo_actual["id"], data)
             if result["success"]:
                 # Guardar ejercicios pendientes si existen (Cascading Save)
@@ -1014,6 +1011,13 @@ class LessonsView(QWidget):
         dialog = LessonDialog(self.api_client, self.modulo_actual["id"], lesson_data=leccion, parent=self, taken_orders=orders)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            if data is None:
+                return
+                
+            # Sólo desplazar si cambió el orden y choca con otro
+            if data["orden"] != leccion.get("orden"):
+                self._desplazar_orden_lecciones(data["orden"], leccion_id_ignorar=leccion["id"])
+                
             result = self.api_client.update_leccion(
                 self.modulo_actual["id"], leccion["id"], data
             )
@@ -1039,6 +1043,53 @@ class LessonsView(QWidget):
                 self.load_lecciones(self.modulo_actual["id"], force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+
+    def _desplazar_orden_lecciones(self, orden_objetivo, leccion_id_ignorar=None):
+        """Si el orden objetivo está ocupado por otra lección, la mueve al max(orden) + 1"""
+        if not self.lecciones:
+            return
+
+        leccion_colision = None
+        for l in self.lecciones:
+            if l.get("id") == leccion_id_ignorar:
+                continue
+            l_orden = l.get("orden")
+            try:
+                if l_orden is not None and int(l_orden) == int(orden_objetivo):
+                    leccion_colision = l
+                    break
+            except (ValueError, TypeError):
+                continue
+
+        if not leccion_colision:
+            return  # No hay colisión
+
+        orders = []
+        for l in self.lecciones:
+            val = l.get('orden')
+            if val is not None:
+                try:
+                    orders.append(int(val))
+                except (ValueError, TypeError):
+                    continue
+
+        nuevo_orden_para_antigua = max(orders) + 1 if orders else 1
+
+        update_data = {
+            "titulo": leccion_colision.get("titulo", "Sin título"),
+            "contenido": leccion_colision.get("contenido", ""),
+            "orden": nuevo_orden_para_antigua,
+            "tiene_editor_codigo": leccion_colision.get("tiene_editor_codigo", False),
+            "tiene_ejercicios": leccion_colision.get("tiene_ejercicios", False),
+            "estado": leccion_colision.get("estado", "activo"),
+        }
+        
+        try:
+            res = self.api_client.update_leccion(self.modulo_actual["id"], leccion_colision["id"], update_data)
+            if res.get("success"):
+                self.toast.show_toast(f"La lección '{leccion_colision.get('titulo')}' se movió al orden {nuevo_orden_para_antigua}", "info")
+        except Exception as e:
+            logger.error(f"Error al desplazar lección: {e}")
 
     def _on_data_changed(self, data_type: str):
         """Manejador para actualizaciones en tiempo real"""
