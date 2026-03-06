@@ -720,6 +720,8 @@ class EvaluationsView(QWidget):
             )
 
             if result["success"]:
+                # Tras añadir, redistribuir puntos antes de refrescar
+                self._recalcular_distribucion_puntos()
                 self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
@@ -770,9 +772,40 @@ class EvaluationsView(QWidget):
             )
 
             if result["success"]:
+                # Filtramos la pregunta actual removiéndola en un mock momentáneo de la lista original
+                self.preguntas = [p for p in self.preguntas if p.get("id") != pregunta["id"]]
+                # Redistribuir con las restantes
+                self._recalcular_distribucion_puntos()
                 self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+
+    def _recalcular_distribucion_puntos(self):
+        """Asigna un puntaje parejo 100/N a todas las preguntas de la evaluación"""
+        if not self.preguntas:
+            return
+            
+        # Calcular porcentaje exacto redondeado a 2 decimales usando float
+        n_preguntas = len(self.preguntas)
+        valor_equitativo = round(float(100.0) / float(n_preguntas), 2)
+        
+        modulo_id = self.modulo_actual.get("id")
+        eval_id = self.evaluacion_actual.get("id")
+        
+        # Iterar sobre las preguntas para actualizar su valor
+        # Idealmente el backend debería tener un endpoint batch, por ahora iteramos.
+        for pre in self.preguntas:
+            p_data = {
+                "pregunta": pre.get("pregunta"),
+                "tipo": pre.get("tipo"),
+                "estado": pre.get("estado", "activo"),
+                "puntos": valor_equitativo
+            }
+            # Se mandan las opciones actuales sin modificar para no perderlas
+            if "opciones" in pre:
+                p_data["opciones"] = pre["opciones"]
+            self.api_client.update_pregunta(modulo_id, eval_id, pre.get("id"), p_data)
+
 
     def _on_data_changed(self, data_type: str):
         """Manejador para actualizaciones en tiempo real"""

@@ -247,11 +247,9 @@ class ExerciseDialog(QDialog):
         header.addWidget(self.tipo_combo)
 
         if self.is_evaluation:
-            header.addWidget(QLabel("Puntos:"))
-            self.puntos_input = QDoubleSpinBox()
-            self.puntos_input.setRange(0, 100)
-            self.puntos_input.setValue(10)
-            header.addWidget(self.puntos_input)
+            # Los puntos ahora se auto-calculan equitativamente en 100/N
+            pass
+
         else:
             header.addWidget(QLabel("Orden:"))
             self.orden_input = QSpinBox()
@@ -377,8 +375,9 @@ class ExerciseDialog(QDialog):
         self.tipo_combo.setCurrentText(data.get("tipo", "seleccion_multiple"))
         self.estado_combo.setCurrentText(data.get("estado", "activo"))
 
-        if self.is_evaluation and self.puntos_input:
-            self.puntos_input.setValue(float(data.get("puntos", 10)))
+        if self.is_evaluation:
+            pass # Puntos se calculan automáticos.
+
         elif self.orden_input:
             self.orden_input.setValue(int(data.get("orden", 1)))
 
@@ -411,8 +410,8 @@ class ExerciseDialog(QDialog):
             "opciones": opciones,
         }
 
-        if self.is_evaluation and self.puntos_input:
-            data["puntos"] = self.puntos_input.value()
+        if self.is_evaluation:
+            data["puntos"] = 0 # Valor provisional, se recalculará en evaluations_view.py
         elif self.orden_input:
             data["orden"] = self.orden_input.value()
 
