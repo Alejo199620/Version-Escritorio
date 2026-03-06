@@ -256,15 +256,6 @@ class RichTextEditor(QWidget):
         )
         toolbar_layout.addWidget(self.align_right_btn)
 
-        self.align_justify_btn = QPushButton("☰")
-        self.align_justify_btn.setCheckable(True)
-        self.align_justify_btn.setFixedWidth(30)
-        self.align_justify_btn.setToolTip("Justificar")
-        self.align_justify_btn.clicked.connect(
-            lambda: self.editor.setAlignment(Qt.AlignmentFlag.AlignJustify)
-        )
-        toolbar_layout.addWidget(self.align_justify_btn)
-
         toolbar_layout.addSpacing(10)
 
         # Listas
@@ -466,7 +457,7 @@ class RichTextEditor(QWidget):
         self.align_left_btn.setChecked(alignment == Qt.AlignmentFlag.AlignLeft)
         self.align_center_btn.setChecked(alignment == Qt.AlignmentFlag.AlignCenter)
         self.align_right_btn.setChecked(alignment == Qt.AlignmentFlag.AlignRight)
-        self.align_justify_btn.setChecked(alignment == Qt.AlignmentFlag.AlignJustify)
+
 
         # Actualizar fuente y tamaño
         if fmt.font().family():
