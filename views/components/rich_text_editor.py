@@ -24,7 +24,10 @@ from PyQt6.QtGui import (
     QColor,
     QTextListFormat,
     QAction,
+    QImage,
+    QTextDocument,
 )
+from PyQt6.QtCore import Qt, QSize, QByteArray, QBuffer, QIODevice, QUrl
 import logging
 import base64
 import os
