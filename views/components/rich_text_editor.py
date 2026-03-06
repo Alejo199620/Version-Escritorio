@@ -15,8 +15,10 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
     QFileDialog,
+    QFormLayout,
+    QSpinBox,
 )
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QByteArray, QBuffer, QIODevice, QUrl, QEvent
 from PyQt6.QtGui import (
     QTextCursor,
     QTextCharFormat,
@@ -27,7 +29,6 @@ from PyQt6.QtGui import (
     QImage,
     QTextDocument,
 )
-from PyQt6.QtCore import Qt, QSize, QByteArray, QBuffer, QIODevice, QUrl
 import logging
 import base64
 import os
@@ -73,6 +74,85 @@ class LinkDialog(QDialog):
 
     def get_data(self):
         return {"url": self.url_input.text(), "text": self.text_input.text()}
+
+
+class ImageResizeDialog(QDialog):
+    def __init__(self, current_w, current_h, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Redimensionar Imagen")
+        self.setFixedSize(300, 160)
+        self.ratio = current_w / current_h if current_h > 0 else 1
+        
+        self.setStyleSheet(
+            """
+            QDialog {
+                background-color: white;
+            }
+            QLabel {
+                color: #1e293b;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QSpinBox {
+                padding: 5px;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+                background-color: #f8fafc;
+                color: #0f172a;
+                font-size: 13px;
+            }
+            QPushButton {
+                background-color: #f1f5f9;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+                padding: 6px 12px;
+                color: #0f172a;
+            }
+            QPushButton:hover {
+                background-color: #e2e8f0;
+            }
+            """
+        )
+        
+        layout = QVBoxLayout(self)
+        
+        form = QFormLayout()
+        self.w_input = QSpinBox()
+        self.w_input.setRange(10, 2000)
+        self.w_input.setValue(int(current_w))
+        
+        self.h_input = QSpinBox()
+        self.h_input.setRange(10, 2000)
+        self.h_input.setValue(int(current_h))
+        
+        form.addRow("Ancho (px):", self.w_input)
+        form.addRow("Alto (px):", self.h_input)
+        layout.addLayout(form)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        
+        self.w_input.valueChanged.connect(self._update_h)
+        self.h_input.valueChanged.connect(self._update_w)
+        
+        self.updating = False
+
+    def _update_h(self, w):
+        if not self.updating and self.ratio > 0:
+            self.updating = True
+            self.h_input.setValue(int(w / self.ratio))
+            self.updating = False
+
+    def _update_w(self, h):
+        if not self.updating and self.ratio > 0:
+            self.updating = True
+            self.w_input.setValue(int(h * self.ratio))
+            self.updating = False
+            
+    def get_data(self):
+        return self.w_input.value(), self.h_input.value()
 
 
 class RichTextEditor(QWidget):
@@ -280,6 +360,9 @@ class RichTextEditor(QWidget):
         # Conectar señales
         self.editor.selectionChanged.connect(self.update_format_buttons)
         self.editor.cursorPositionChanged.connect(self.update_format_buttons)
+        
+        # Interceptar clicks para redimensionar imágenes
+        self.editor.viewport().installEventFilter(self)
 
         # Forzar el tamaño de fuente inicial
         fmt = QTextCharFormat()
@@ -443,3 +526,49 @@ class RichTextEditor(QWidget):
 
         if fmt.fontPointSize() > 0:
             self.size_combo.setCurrentText(str(int(fmt.fontPointSize())))
+
+    def eventFilter(self, obj, event):
+        """Filtro para interceptar doble clic en imágenes"""
+        if obj == self.editor.viewport() and event.type() == QEvent.Type.MouseButtonDblClick:
+            cursor = self.editor.cursorForPosition(event.pos())
+            
+            # Revisamos carácter siguiente al clic
+            cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, 1)
+            fmt_char = cursor.charFormat()
+            
+            if not fmt_char.isImageFormat():
+                # Revisamos carácter previo al clic
+                cursor = self.editor.cursorForPosition(event.pos())
+                cursor.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.KeepAnchor, 1)
+                fmt_char = cursor.charFormat()
+                
+            if fmt_char.isImageFormat():
+                img_fmt = fmt_char.toImageFormat()
+                w = img_fmt.width()
+                h = img_fmt.height()
+                
+                # Intentar obtener tamaño original si no está definido en el formato HTML
+                if w <= 0 or h <= 0:
+                    name = img_fmt.name()
+                    res = self.editor.document().resource(QTextDocument.ResourceType.ImageResource, QUrl(name))
+                    if isinstance(res, QImage):
+                        w = res.width()
+                        h = res.height()
+                    else:
+                        w, h = 300, 300 # Fallback
+                
+                dialog = ImageResizeDialog(w, h, self)
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    new_w, new_h = dialog.get_data()
+                    img_fmt.setWidth(new_w)
+                    img_fmt.setHeight(new_h)
+                    
+                    # Aplicar formato (el cursor ya tiene la imagen seleccionada)
+                    cursor.setCharFormat(img_fmt)
+                    
+                    # Actualizar cursor de la vista
+                    cursor.clearSelection()
+                    self.editor.setTextCursor(cursor)
+                return True
+                
+        return super().eventFilter(obj, event)
