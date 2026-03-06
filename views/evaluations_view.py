@@ -522,7 +522,6 @@ class EvaluationsView(QWidget):
                 self.evaluacion_actual = data
                 self.mostrar_configuracion(data)
                 self.load_preguntas(modulo_id, data.get("id"))
-                self.new_question_btn.setEnabled(True)
             else:
                 self.evaluacion_actual = None
                 self.mostrar_sin_evaluacion()
@@ -563,8 +562,6 @@ class EvaluationsView(QWidget):
             f"{preguntas_count} Preguntas | {tiempo} min | {puntaje}% p/aprob."
         )
 
-        self.new_question_btn.setEnabled(True)
-
     def mostrar_sin_evaluacion(self):
         """Mostrar placeholder amigable de creación"""
         self.eval_toolbar.hide()
@@ -585,6 +582,18 @@ class EvaluationsView(QWidget):
         )
         self.table.setColumnWidth(4, 120)
         self.table.verticalHeader().setDefaultSectionSize(54)
+        
+        # Validar límite de preguntas
+        if self.evaluacion_actual:
+            max_preguntas = self.evaluacion_actual.get("numero_preguntas", 10)
+            if len(preguntas) >= max_preguntas:
+                self.new_question_btn.setEnabled(False)
+                self.new_question_btn.setText("Límite Alcanzado")
+                self.new_question_btn.setToolTip(f"Ya has alcanzado el límite configurado de {max_preguntas} preguntas.")
+            else:
+                self.new_question_btn.setEnabled(True)
+                self.new_question_btn.setText("➕ Nueva Pregunta")
+                self.new_question_btn.setToolTip("")
 
         for row, pregunta in enumerate(preguntas):
             # ID
@@ -714,6 +723,12 @@ class EvaluationsView(QWidget):
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
+            
+            # Prevenir error 422 The puntos field must be at least 0.5.
+            n_preguntas_config = self.evaluacion_actual.get("numero_preguntas", len(self.preguntas) + 1)
+            if n_preguntas_config <= 0:
+                n_preguntas_config = 1
+            data["puntos"] = round(100.0 / float(n_preguntas_config), 2)
 
             result = self.api_client.create_pregunta(
                 self.modulo_actual.get("id"), self.evaluacion_actual.get("id"), data, silent=True
@@ -782,12 +797,15 @@ class EvaluationsView(QWidget):
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
     def _recalcular_distribucion_puntos(self):
-        """Asigna un puntaje parejo 100/N a todas las preguntas de la evaluación"""
-        if not self.preguntas:
+        """Asigna un puntaje parejo 100/N a todas las preguntas de la evaluación basado en su configuración maestra"""
+        if not self.preguntas or not self.evaluacion_actual:
             return
             
-        # Calcular porcentaje exacto redondeado a 2 decimales usando float
-        n_preguntas = len(self.preguntas)
+        # Calcular porcentaje exacto redondeado a 2 decimales usando float dividido el n configurado en Config, no en las cargadas!
+        n_preguntas = self.evaluacion_actual.get("numero_preguntas", len(self.preguntas))
+        if n_preguntas <= 0:
+            n_preguntas = 1
+            
         valor_equitativo = round(float(100.0) / float(n_preguntas), 2)
         
         modulo_id = self.modulo_actual.get("id")
