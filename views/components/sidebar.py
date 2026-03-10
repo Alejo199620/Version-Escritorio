@@ -162,7 +162,7 @@ class Sidebar(QWidget):
         user_layout.setSpacing(8)
 
         # Cerrar sesión MEJORADO
-        self.logout_btn = QPushButton("🚪 Cerrar Sesión")
+        self.logout_btn = QPushButton("Cerrar Sesión")
         self.logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.logout_btn.setStyleSheet(
             """
