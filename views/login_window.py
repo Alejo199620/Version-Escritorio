@@ -289,7 +289,7 @@ class LoginWindow(QWidget):
 
         # CONFIGURACIÓN DE AUTO-LOGIN PARA PRUEBAS
         # Se puede desactivar cambiando False o usando una variable de entorno
-        self.auto_login_enabled = True
+        self.auto_login_enabled = False
 
         if self.auto_login_enabled:
             self.email_input.setText("alejo29.c@gmail.com")

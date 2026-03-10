@@ -8,7 +8,7 @@ import json
 import requests
 
 # Evitar que Qt se inicie al importar
-os.environ.setdefault("API_URL", "http://localhost:8000/api")
+os.environ.setdefault("API_URL", "http://localhost:8001/api")
 
 BASE_URL = os.getenv("API_URL", "http://localhost:8000/api")
 EMAIL = "alejo29.c@gmail.com"

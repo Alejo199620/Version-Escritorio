@@ -5,7 +5,7 @@ import sys, traceback
 sys.path.insert(0, r"c:\Users\Henry\Desktop\admin-python - copia")
 
 import os
-os.environ.setdefault("API_URL", "http://localhost:8000/api")
+os.environ.setdefault("API_URL", "http://localhost:8001/api")
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer

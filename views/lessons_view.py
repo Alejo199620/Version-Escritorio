@@ -998,7 +998,10 @@ class LessonsView(QWidget):
 
                 self.load_lecciones(self.modulo_actual["id"], force_refresh=True)
             else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+                err_msg = str(result.get('error', 'Error desconocido'))
+                if len(err_msg) > 200:
+                    err_msg = err_msg[:200] + "..."
+                QMessageBox.critical(self, "Error", f"Error al crear: {err_msg}")
 
     def editar_leccion(self, leccion):
         """Editar lección"""
@@ -1024,7 +1027,10 @@ class LessonsView(QWidget):
             if result["success"]:
                 self.load_lecciones(self.modulo_actual["id"], force_refresh=True)
             else:
-                QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
+                err_msg = str(result.get('error', 'Error desconocido'))
+                if len(err_msg) > 200:
+                    err_msg = err_msg[:200] + "..."
+                QMessageBox.critical(self, "Error", f"Error al actualizar: {err_msg}")
 
     def eliminar_leccion(self, leccion):
         """Eliminar lección"""
