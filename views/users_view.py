@@ -851,7 +851,7 @@ class UserDialog(QDialog):
         rol_cont.setSpacing(0)
         rol_cont.addWidget(QLabel("Rol"))
         self.rol_combo = QComboBox()
-        self.rol_combo.addItems(["aprendiz", "administrador"])
+        self.rol_combo.addItems(["Aprendiz", "Administrador"])
         self.rol_combo.setStyleSheet("""
             QComboBox {
                 background-color: #ffffff;
@@ -876,7 +876,7 @@ class UserDialog(QDialog):
         estado_cont.setSpacing(0)
         estado_cont.addWidget(QLabel("Estado"))
         self.estado_combo = QComboBox()
-        self.estado_combo.addItems(["activo", "inactivo"])
+        self.estado_combo.addItems(["Activo", "Inactivo"])
         self.estado_combo.setStyleSheet(self.rol_combo.styleSheet())
         estado_cont.addWidget(self.estado_combo)
         row_layout.addLayout(estado_cont)
