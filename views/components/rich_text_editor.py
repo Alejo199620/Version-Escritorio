@@ -17,8 +17,10 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QSpinBox,
     QFrame,
+    QGridLayout,
+    QMenu,
 )
-from PyQt6.QtCore import Qt, QSize, QByteArray, QBuffer, QIODevice, QUrl, QEvent
+from PyQt6.QtCore import Qt, QSize, QUrl, QEvent, QPoint, QTimer, QRect, QRectF, pyqtSignal
 from PyQt6.QtGui import (
     QTextCursor,
     QTextCharFormat,
@@ -30,15 +32,22 @@ from PyQt6.QtGui import (
     QTextDocument,
     QPainter,
     QPixmap,
+    QIcon,
+    QTextImageFormat,
+    QTextBlockFormat,
+    QPen,
 )
 import logging
 import base64
 import os
-import mimetypes
 from utils.paths import resource_path
 
 logger = logging.getLogger(__name__)
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  DIÁLOGO DE REDIMENSIONAR IMAGEN
+# ═══════════════════════════════════════════════════════════════════════════════
 
 class ImageResizeDialog(QDialog):
     def __init__(self, current_w, current_h, parent=None):
@@ -46,76 +55,35 @@ class ImageResizeDialog(QDialog):
         self.setWindowTitle("Redimensionar Imagen")
         self.setFixedSize(320, 180)
         self.ratio = current_w / current_h if current_h > 0 else 1
-
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #ffffff;
-            }
-            QLabel {
-                color: #1e293b;
-                font-size: 13px;
-                font-weight: 500;
-                font-family: 'Segoe UI';
-            }
+        self.setStyleSheet("""
+            QDialog { background-color: #ffffff; }
+            QLabel { color: #1e293b; font-size: 13px; font-weight: 500; font-family: 'Segoe UI'; }
             QSpinBox {
-                padding: 8px 10px;
-                border: 1.5px solid #e2e8f0;
-                border-radius: 8px;
-                background-color: #f8fafc;
-                color: #0f172a;
-                font-size: 13px;
-                font-family: 'Segoe UI';
+                padding: 8px 10px; border: 1.5px solid #e2e8f0; border-radius: 8px;
+                background-color: #f8fafc; color: #0f172a; font-size: 13px; font-family: 'Segoe UI';
             }
-            QSpinBox:focus {
-                border-color: #4361ee;
-                background-color: #ffffff;
-            }
-            QPushButton {
-                background-color: #4361ee;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 20px;
-                font-size: 13px;
-                font-family: 'Segoe UI';
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #3f37c9;
-            }
-            QPushButton[text="Cancel"], QPushButton[flat=true] {
-                background-color: #f1f5f9;
-                color: #475569;
-            }
-            """
-        )
-
+            QSpinBox:focus { border-color: #4361ee; background-color: #ffffff; }
+        """)
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 24, 24, 24)
-
         form = QFormLayout()
         form.setSpacing(12)
         self.w_input = QSpinBox()
         self.w_input.setRange(10, 2000)
         self.w_input.setValue(int(current_w))
-
         self.h_input = QSpinBox()
         self.h_input.setRange(10, 2000)
         self.h_input.setValue(int(current_h))
-
         form.addRow("Ancho (px):", self.w_input)
         form.addRow("Alto (px):", self.h_input)
         layout.addLayout(form)
-
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
-
         self.w_input.valueChanged.connect(self._update_h)
         self.h_input.valueChanged.connect(self._update_w)
         self.updating = False
@@ -136,152 +104,533 @@ class ImageResizeDialog(QDialog):
         return self.w_input.value(), self.h_input.value()
 
 
-def _make_color_icon(color: QColor, size: int = 16) -> QPixmap:
-    """Genera un icono sólido del color especificado."""
-    pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setBrush(color)
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.drawRoundedRect(0, 0, size, size, 3, 3)
-    painter.end()
-    return pixmap
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PALETA DE COLORES POPUP
+# ═══════════════════════════════════════════════════════════════════════════════
 
+_PALETTE_COLORS = [
+    "#000000","#434343","#666666","#999999","#b7b7b7","#cccccc","#d9d9d9","#efefef","#f3f3f3","#ffffff",
+    "#980000","#ff0000","#ff9900","#ffff00","#00ff00","#00ffff","#4a86e8","#0000ff","#9900ff","#ff00ff",
+    "#e6b8af","#f4cccc","#fce5cd","#fff2cc","#d9ead3","#d0e0e3","#c9daf8","#cfe2f3","#d9d2e9","#ead1dc",
+    "#dd7e6b","#ea9999","#f9cb9c","#ffe599","#b6d7a8","#a2c4c9","#a4c2f4","#9fc5e8","#b4a7d6","#d5a6bd",
+    "#cc4125","#e06666","#f6b26b","#ffd966","#93c47d","#76a5af","#6d9eeb","#6fa8dc","#8e7cc3","#c27ba0",
+    "#a61c00","#cc0000","#e69138","#f1c232","#6aa84f","#45818e","#3c78d8","#3d85c6","#674ea7","#a64d79",
+    "#85200c","#990000","#b45f06","#bf9000","#38761d","#134f5c","#1155cc","#0b5394","#351c75","#741b47",
+]
+
+class ColorPalettePopup(QDialog):
+    def __init__(self, current_color: QColor, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        self.selected_color = None
+        self.setFixedSize(292, 260)
+        self.setStyleSheet("QDialog{background:#fff;border:1px solid #e2e8f0;border-radius:10px;}")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 8)
+        layout.setSpacing(8)
+
+        title = QLabel("Color de texto")
+        title.setStyleSheet("color:#64748b;font-size:11px;font-family:'Segoe UI';font-weight:600;")
+        layout.addWidget(title)
+
+        grid = QGridLayout()
+        grid.setSpacing(2)
+        for i, hc in enumerate(_PALETTE_COLORS):
+            btn = QPushButton()
+            btn.setFixedSize(24, 24)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            is_light = hc.upper() in ("#FFFFFF", "#EFEFEF", "#F3F3F3")
+            bd = "1px solid #d1d5db" if is_light else "none"
+            btn.setStyleSheet(
+                f"QPushButton{{background:{hc};border:{bd};border-radius:4px;}}"
+                f"QPushButton:hover{{border:2px solid #1e293b;}}"
+            )
+            btn.setToolTip(hc)
+            btn.clicked.connect(lambda _, c=hc: self._pick(c))
+            grid.addWidget(btn, i // 10, i % 10)
+        layout.addLayout(grid)
+
+        sep = QFrame()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet("background:#e2e8f0;")
+        layout.addWidget(sep)
+
+        custom_btn = QPushButton("  Personalizado...")
+        custom_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        custom_btn.setStyleSheet(
+            "QPushButton{background:transparent;color:#4361ee;border:none;border-radius:6px;"
+            "font-size:12px;font-family:'Segoe UI';font-weight:600;text-align:left;padding:4px 6px;}"
+            "QPushButton:hover{background:#eef2ff;}"
+        )
+        custom_btn.clicked.connect(lambda: self._custom(current_color))
+        layout.addWidget(custom_btn)
+
+    def _pick(self, hc):
+        self.selected_color = QColor(hc)
+        self.close()
+
+    def _custom(self, cur):
+        c = QColorDialog.getColor(cur, self, "Seleccionar color")
+        if c.isValid():
+            self.selected_color = c
+        self.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  OVERLAY DE SELECCIÓN + HANDLES SOBRE IMÁGENES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_HS = 10   # Tamaño de cada handle (px)
+_HH = 5    # Mitad del handle
+
+# Cursores según handle index (0-7 en sentido horario desde top-left)
+_CURSORS = [
+    Qt.CursorShape.SizeFDiagCursor,   # 0 top-left
+    Qt.CursorShape.SizeVerCursor,     # 1 top-center
+    Qt.CursorShape.SizeBDiagCursor,   # 2 top-right
+    Qt.CursorShape.SizeHorCursor,     # 3 mid-right
+    Qt.CursorShape.SizeFDiagCursor,   # 4 bottom-right
+    Qt.CursorShape.SizeVerCursor,     # 5 bottom-center
+    Qt.CursorShape.SizeBDiagCursor,   # 6 bottom-left
+    Qt.CursorShape.SizeHorCursor,     # 7 mid-left
+]
+
+
+class ImageSelectionOverlay(QWidget):
+    """
+    Overlay transparente que se superpone al viewport del QTextEdit.
+    Cuando se selecciona una imagen, dibuja:
+      - Un borde azul punteado
+      - 8 handles (esquinas + medios) arrastrables para redimensionar
+      - Mini-barra de info con dimensiones
+      - Mini-botones de alineación y eliminación
+    """
+
+    image_deselected = pyqtSignal()
+
+    def __init__(self, editor_widget: 'RichTextEditor', text_edit: QTextEdit, parent=None):
+        super().__init__(parent or text_edit.viewport())
+        self._editor = editor_widget
+        self._text_edit = text_edit
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setMouseTracking(True)
+
+        # Estado
+        self._active = False
+        self._cursor: QTextCursor = None      # cursor con la imagen seleccionada
+        self._fmt: QTextImageFormat = None     # formato de la imagen
+        self._rect = QRect()                   # rectángulo de la imagen (viewport coords)
+        self._img_w = 0.0                      # ancho real de la imagen
+        self._img_h = 0.0                      # alto real de la imagen
+        self._ratio = 1.0                      # aspect ratio (h/w)
+
+        # Arrastre
+        self._dragging = False
+        self._drag_idx = -1
+        self._drag_origin = QPoint()
+        self._drag_rect0 = QRect()
+
+        # Conectar scroll para re-posicionar
+        sb = text_edit.verticalScrollBar()
+        if sb:
+            sb.valueChanged.connect(self._on_scroll)
+
+        self.hide()
+
+    # ── Activar / Desactivar ────────────────────────────────────────────────
+
+    def activate(self, cursor: QTextCursor, fmt: QTextImageFormat, rect: QRect):
+        self._cursor = QTextCursor(cursor)
+        self._fmt = QTextImageFormat(fmt)
+        self._rect = QRect(rect)
+        self._img_w = rect.width()
+        self._img_h = rect.height()
+        self._ratio = self._img_h / self._img_w if self._img_w > 0 else 1
+        self._active = True
+        self._dragging = False
+
+        # Cubrir todo el viewport
+        vp = self._text_edit.viewport()
+        self.setGeometry(0, 0, vp.width(), vp.height())
+        self.show()
+        self.raise_()
+        self.update()
+
+    def deactivate(self):
+        if not self._active:
+            return
+        self._active = False
+        self._dragging = False
+        self.hide()
+        self.image_deselected.emit()
+
+    def _on_scroll(self):
+        """Deselecciona al hacer scroll para evitar desfase."""
+        if self._active:
+            self.deactivate()
+
+    # ── Handles ─────────────────────────────────────────────────────────────
+
+    def _handles(self):
+        r = self._rect
+        cx, cy = r.center().x(), r.center().y()
+        return [
+            QRect(r.left() - _HH,  r.top() - _HH,    _HS, _HS),   # 0 TL
+            QRect(cx - _HH,        r.top() - _HH,    _HS, _HS),   # 1 TC
+            QRect(r.right() - _HH, r.top() - _HH,    _HS, _HS),   # 2 TR
+            QRect(r.right() - _HH, cy - _HH,         _HS, _HS),   # 3 MR
+            QRect(r.right() - _HH, r.bottom() - _HH, _HS, _HS),   # 4 BR
+            QRect(cx - _HH,        r.bottom() - _HH, _HS, _HS),   # 5 BC
+            QRect(r.left() - _HH,  r.bottom() - _HH, _HS, _HS),   # 6 BL
+            QRect(r.left() - _HH,  cy - _HH,         _HS, _HS),   # 7 ML
+        ]
+
+    def _hit(self, pos) -> int:
+        for i, hr in enumerate(self._handles()):
+            if hr.adjusted(-4, -4, 4, 4).contains(pos):
+                return i
+        return -1
+
+    # ── Painting ────────────────────────────────────────────────────────────
+
+    def paintEvent(self, ev):
+        if not self._active:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Sombra semi-transparente fuera de la imagen
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(0, 0, 0, 20))
+        # Dibujamos 4 rectángulos alrededor (sin afectar la imagen)
+        vr = self.rect()
+        ir = self._rect
+        p.drawRect(QRect(0, 0, vr.width(), ir.top()))                                   # arriba
+        p.drawRect(QRect(0, ir.bottom(), vr.width(), vr.height() - ir.bottom()))        # abajo
+        p.drawRect(QRect(0, ir.top(), ir.left(), ir.height()))                           # izquierda
+        p.drawRect(QRect(ir.right(), ir.top(), vr.width() - ir.right(), ir.height()))   # derecha
+
+        # Borde azul continuo
+        pen = QPen(QColor("#4361ee"), 2)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRect(self._rect)
+
+        # Handles
+        for hr in self._handles():
+            # Sombra
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(0, 0, 0, 50))
+            p.drawRoundedRect(hr.adjusted(1, 1, 1, 1), 2, 2)
+            # Cuadro blanco con borde azul
+            p.setPen(QPen(QColor("#4361ee"), 1.5))
+            p.setBrush(QColor("#ffffff"))
+            p.drawRoundedRect(hr, 2, 2)
+
+        # Info badge (dimensiones)
+        info = f"{int(self._img_w)} × {int(self._img_h)}"
+        font = QFont("Segoe UI", 9, QFont.Weight.Bold)
+        p.setFont(font)
+        fm = p.fontMetrics()
+        tw = fm.horizontalAdvance(info) + 16
+        th = fm.height() + 8
+        tx = ir.center().x() - tw // 2
+        ty = ir.top() - th - 8
+        if ty < 2:
+            ty = ir.bottom() + 8
+        badge = QRect(tx, ty, tw, th)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#1e293b"))
+        p.drawRoundedRect(badge, 5, 5)
+        p.setPen(QColor("#ffffff"))
+        p.drawText(badge, Qt.AlignmentFlag.AlignCenter, info)
+
+        # Mini toolbar (alinear + eliminar) — debajo de la imagen
+        self._paint_mini_toolbar(p)
+
+        p.end()
+
+    def _paint_mini_toolbar(self, p: QPainter):
+        """Pinta una mini-barra debajo de la imagen con botones de alineación."""
+        ir = self._rect
+        bar_w = 180
+        bar_h = 30
+        bx = ir.center().x() - bar_w // 2
+        by = ir.bottom() + 12
+        if by + bar_h > self.height() - 4:
+            by = ir.top() - bar_h - 12
+
+        bar = QRect(bx, by, bar_w, bar_h)
+        self._mini_bar_rect = bar  # Guardar para hit-testing
+
+        # Fondo
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#1e293b"))
+        p.drawRoundedRect(bar, 7, 7)
+
+        # Botones
+        btns = [("◧", "left"), ("◫", "center"), ("◨", "right"), ("|", "sep"), ("🗑", "delete")]
+        bw = bar_w // len(btns)
+        font = QFont("Segoe UI", 11)
+        p.setFont(font)
+
+        self._mini_btns = []
+        for i, (lbl, action) in enumerate(btns):
+            btn_r = QRect(bx + i * bw, by, bw, bar_h)
+            self._mini_btns.append((btn_r, action))
+
+            if action == "sep":
+                # Separador vertical
+                sx = btn_r.center().x()
+                p.setPen(QPen(QColor("#475569"), 1))
+                p.drawLine(sx, by + 6, sx, by + bar_h - 6)
+            else:
+                p.setPen(QColor("#e2e8f0"))
+                p.drawText(btn_r, Qt.AlignmentFlag.AlignCenter, lbl)
+
+    # ── Mouse Events ────────────────────────────────────────────────────────
+
+    def mousePressEvent(self, ev):
+        if not self._active:
+            ev.ignore()
+            return
+
+        pos = ev.pos()
+
+        # ¿Clic en un handle?
+        idx = self._hit(pos)
+        if idx >= 0:
+            self._dragging = True
+            self._drag_idx = idx
+            self._drag_origin = pos
+            self._drag_rect0 = QRect(self._rect)
+            ev.accept()
+            return
+
+        # ¿Clic en mini toolbar?
+        if hasattr(self, '_mini_btns'):
+            for btn_r, action in self._mini_btns:
+                if action != "sep" and btn_r.contains(pos):
+                    self._handle_mini_action(action)
+                    ev.accept()
+                    return
+
+        # ¿Clic dentro de la imagen? — mantener selección
+        if self._rect.contains(pos):
+            ev.accept()
+            return
+
+        # Clic fuera → deseleccionar y pasar evento al editor
+        self.deactivate()
+        # Re-enviar el clic al viewport del editor
+        self._text_edit.viewport().update()
+        ev.ignore()
+
+    def mouseMoveEvent(self, ev):
+        if not self._active:
+            ev.ignore()
+            return
+
+        pos = ev.pos()
+
+        if self._dragging:
+            self._do_drag(pos)
+            ev.accept()
+            return
+
+        # Cambiar cursor
+        idx = self._hit(pos)
+        if idx >= 0:
+            self.setCursor(_CURSORS[idx])
+        elif self._rect.contains(pos):
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        elif hasattr(self, '_mini_bar_rect') and self._mini_bar_rect.contains(pos):
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        ev.accept()
+
+    def mouseReleaseEvent(self, ev):
+        if self._dragging:
+            self._dragging = False
+            self._apply_size()
+            ev.accept()
+        else:
+            ev.ignore()
+
+    def mouseDoubleClickEvent(self, ev):
+        if self._active and self._rect.contains(ev.pos()):
+            dlg = ImageResizeDialog(self._img_w, self._img_h, self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                nw, nh = dlg.get_data()
+                self._img_w = nw
+                self._img_h = nh
+                self._ratio = nh / nw if nw > 0 else 1
+                self._apply_size()
+            ev.accept()
+        else:
+            ev.ignore()
+
+    # ── Arrastre ────────────────────────────────────────────────────────────
+
+    def _do_drag(self, pos: QPoint):
+        dx = pos.x() - self._drag_origin.x()
+        dy = pos.y() - self._drag_origin.y()
+        r0 = self._drag_rect0
+        h = self._drag_idx
+        MIN_SZ = 30
+
+        # Todos los handles mantienen proporción usando _ratio
+        if h in (4, 2):       # bottom-right, top-right → ancho crece con dx
+            nw = max(MIN_SZ, r0.width() + dx)
+        elif h in (0, 6):     # top-left, bottom-left → ancho decrece con dx
+            nw = max(MIN_SZ, r0.width() - dx)
+        elif h in (3, 7):     # mid-right, mid-left → horizontal puro
+            nw = max(MIN_SZ, r0.width() + dx) if h == 3 else max(MIN_SZ, r0.width() - dx)
+        elif h in (1, 5):     # top-center, bottom-center → vertical → calc w inversamente
+            nh_raw = max(MIN_SZ, r0.height() + dy) if h == 5 else max(MIN_SZ, r0.height() - dy)
+            nw = int(nh_raw / self._ratio) if self._ratio > 0 else nh_raw
+        else:
+            nw = r0.width()
+
+        nh = int(nw * self._ratio)
+
+        # Anclar posición según handle
+        if h in (0, 7):       # izquierda: anclar derecha
+            nx = r0.right() - nw
+            ny = r0.top() if h == 7 else (r0.bottom() - nh if h == 0 else r0.top())
+        elif h == 1:          # top-center: anclar abajo
+            nx = r0.left()
+            ny = r0.bottom() - nh
+        elif h == 6:          # bottom-left
+            nx = r0.right() - nw
+            ny = r0.top()
+        elif h == 2:          # top-right
+            nx = r0.left()
+            ny = r0.bottom() - nh
+        else:                 # 3, 4, 5: anclar top-left
+            nx = r0.left()
+            ny = r0.top()
+
+        self._rect = QRect(int(nx), int(ny), int(nw), int(nh))
+        self._img_w = nw
+        self._img_h = nh
+        self.update()
+
+    def _apply_size(self):
+        """Aplica el tamaño final al QTextImageFormat del documento."""
+        if not self._cursor or not self._fmt:
+            return
+        new_fmt = QTextImageFormat(self._fmt)
+        new_fmt.setWidth(int(self._img_w))
+        new_fmt.setHeight(int(self._img_h))
+        self._cursor.setCharFormat(new_fmt)
+        self._fmt = new_fmt
+        # Recalcular rect tras el cambio
+        QTimer.singleShot(80, self._refresh_after_apply)
+
+    def _refresh_after_apply(self):
+        if not self._active or not self._cursor:
+            return
+        # Recalcular posición
+        new_rect = self._editor._calc_image_rect(self._cursor, self._fmt)
+        if new_rect.isValid() and new_rect.width() > 10:
+            self._rect = new_rect
+        self.update()
+
+    # ── Mini toolbar actions ────────────────────────────────────────────────
+
+    def _handle_mini_action(self, action: str):
+        if not self._cursor:
+            return
+        if action == "left":
+            self._align_image(Qt.AlignmentFlag.AlignLeft)
+        elif action == "center":
+            self._align_image(Qt.AlignmentFlag.AlignCenter)
+        elif action == "right":
+            self._align_image(Qt.AlignmentFlag.AlignRight)
+        elif action == "delete":
+            self._cursor.deleteChar()
+            self.deactivate()
+
+    def _align_image(self, alignment):
+        block_fmt = QTextBlockFormat()
+        block_fmt.setAlignment(alignment)
+        self._cursor.mergeBlockFormat(block_fmt)
+        self._text_edit.setTextCursor(self._cursor)
+        # Deseleccionar y re-renderizar
+        self.deactivate()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  UTILIDADES DE ESTILO
+# ═══════════════════════════════════════════════════════════════════════════════
 
 class ToolbarSeparator(QFrame):
-    """Separador vertical fino para la toolbar."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.VLine)
         self.setFixedSize(1, 24)
-        self.setStyleSheet("background-color: #e2e8f0;")
+        self.setStyleSheet("background-color:#e2e8f0;")
 
-
-# ─── ESTILOS COMPARTIDOS ────────────────────────────────────────────────────
 
 _TOOLBAR_BTN = """
     QPushButton {{
-        background-color: transparent;
-        color: {fg};
-        border: none;
-        border-radius: 6px;
-        padding: 0px;
-        font-size: {fs}px;
-        font-family: 'Segoe UI';
-        font-weight: {fw};
-        min-width: {w}px;
-        min-height: 30px;
-        max-height: 30px;
+        background-color:transparent; color:{fg}; border:none; border-radius:6px;
+        padding:0; font-size:{fs}px; font-family:'Segoe UI'; font-weight:{fw};
+        min-width:{w}px; min-height:30px; max-height:30px;
     }}
-    QPushButton:hover {{
-        background-color: #f1f5f9;
-    }}
-    QPushButton:checked {{
-        background-color: #eef2ff;
-        color: #4361ee;
-    }}
-    QPushButton:pressed {{
-        background-color: #e0e7ff;
-    }}
+    QPushButton:hover {{ background-color:#f1f5f9; }}
+    QPushButton:checked {{ background-color:#eef2ff; color:#4361ee; }}
+    QPushButton:pressed {{ background-color:#e0e7ff; }}
 """
-
 
 def _btn_style(fg="#374151", fs=13, fw="600", w=32):
     return _TOOLBAR_BTN.format(fg=fg, fs=fs, fw=fw, w=w)
 
-
 _COMBO_STYLE = """
     QComboBox {
-        border: 1.5px solid #e2e8f0;
-        border-radius: 7px;
-        padding: 3px 8px;
-        background-color: #f8fafc;
-        color: #1e293b;
-        font-size: 12px;
-        font-family: 'Segoe UI';
-        selection-background-color: #4361ee;
+        border:1.5px solid #e2e8f0; border-radius:7px; padding:3px 8px;
+        background:#f8fafc; color:#1e293b; font-size:12px; font-family:'Segoe UI';
     }
-    QComboBox:hover {
-        border-color: #94a3b8;
-        background-color: #ffffff;
-    }
-    QComboBox:focus {
-        border-color: #4361ee;
-        background-color: #ffffff;
-    }
-    QComboBox::drop-down {
-        border: none;
-        padding-right: 6px;
-    }
+    QComboBox:hover { border-color:#94a3b8; background:#fff; }
+    QComboBox:focus { border-color:#4361ee; background:#fff; }
+    QComboBox::drop-down { border:none; padding-right:6px; }
     QComboBox::down-arrow {
-        image: none;
-        border-left: 4px solid transparent;
-        border-right: 4px solid transparent;
-        border-top: 5px solid #64748b;
-        width: 0;
-        height: 0;
-        margin-right: 4px;
+        image:none; border-left:4px solid transparent; border-right:4px solid transparent;
+        border-top:5px solid #64748b; width:0; height:0; margin-right:4px;
     }
     QComboBox QAbstractItemView {
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        background-color: white;
-        color: #1e293b;
-        selection-background-color: #eef2ff;
-        selection-color: #4361ee;
-        font-size: 12px;
-        font-family: 'Segoe UI';
-        padding: 4px;
+        border:1px solid #e2e8f0; border-radius:8px; background:white; color:#1e293b;
+        selection-background-color:#eef2ff; selection-color:#4361ee;
+        font-size:12px; font-family:'Segoe UI'; padding:4px;
     }
 """
 
 _FONTCOMBO_STYLE = """
     QFontComboBox {
-        border: 1.5px solid #e2e8f0;
-        border-radius: 7px;
-        padding: 3px 8px;
-        background-color: #f8fafc;
-        color: #1e293b;
-        font-size: 12px;
-        font-family: 'Segoe UI';
+        border:1.5px solid #e2e8f0; border-radius:7px; padding:3px 8px;
+        background:#f8fafc; color:#1e293b; font-size:12px; font-family:'Segoe UI';
     }
-    QFontComboBox:hover {
-        border-color: #94a3b8;
-        background-color: #ffffff;
-    }
-    QFontComboBox:focus {
-        border-color: #4361ee;
-        background-color: #ffffff;
-    }
-    QFontComboBox::drop-down {
-        border: none;
-        padding-right: 6px;
-    }
+    QFontComboBox:hover { border-color:#94a3b8; background:#fff; }
+    QFontComboBox:focus { border-color:#4361ee; background:#fff; }
+    QFontComboBox::drop-down { border:none; padding-right:6px; }
     QFontComboBox::down-arrow {
-        image: none;
-        border-left: 4px solid transparent;
-        border-right: 4px solid transparent;
-        border-top: 5px solid #64748b;
-        width: 0;
-        height: 0;
-        margin-right: 4px;
+        image:none; border-left:4px solid transparent; border-right:4px solid transparent;
+        border-top:5px solid #64748b; width:0; height:0; margin-right:4px;
     }
     QFontComboBox QAbstractItemView {
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        background-color: white;
-        color: #1e293b;
-        selection-background-color: #eef2ff;
-        selection-color: #4361ee;
-        font-size: 12px;
-        font-family: 'Segoe UI';
-        padding: 4px;
+        border:1px solid #e2e8f0; border-radius:8px; background:white; color:#1e293b;
+        selection-background-color:#eef2ff; selection-color:#4361ee;
+        font-size:12px; font-family:'Segoe UI'; padding:4px;
     }
 """
 
 
-# ─── EDITOR PRINCIPAL ────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+#  EDITOR PRINCIPAL
+# ═══════════════════════════════════════════════════════════════════════════════
 
 class RichTextEditor(QWidget):
     """
@@ -291,262 +640,173 @@ class RichTextEditor(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._current_color = QColor("#1e293b")  # Color de texto activo
-        self._updating_toolbar = False           # Evitar bucles de señales
+        self._current_color = QColor("#1e293b")
+        self._updating_toolbar = False
+        self._overlay: ImageSelectionOverlay = None
         self.setup_ui()
 
-    # ─── SETUP ──────────────────────────────────────────────────────────────
+    # ── Setup ───────────────────────────────────────────────────────────────
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
         layout.addWidget(self._build_toolbar())
         layout.addWidget(self._build_editor())
 
     def _build_toolbar(self) -> QWidget:
-        toolbar = QWidget()
-        toolbar.setObjectName("rtToolbar")
-        toolbar.setFixedHeight(50)
-        toolbar.setStyleSheet(
-            """
+        tb = QWidget()
+        tb.setObjectName("rtToolbar")
+        tb.setFixedHeight(50)
+        tb.setStyleSheet("""
             #rtToolbar {
-                background-color: #ffffff;
-                border: 1.5px solid #e2e8f0;
-                border-bottom: none;
-                border-top-left-radius: 10px;
-                border-top-right-radius: 10px;
+                background:#fff; border:1.5px solid #e2e8f0; border-bottom:none;
+                border-top-left-radius:10px; border-top-right-radius:10px;
             }
-            """
-        )
-
-        row = QHBoxLayout(toolbar)
+        """)
+        row = QHBoxLayout(tb)
         row.setContentsMargins(10, 0, 10, 0)
         row.setSpacing(4)
 
-        # ── Fuente ──
+        # Font
         self.font_combo = QFontComboBox()
-        self.font_combo.setFixedWidth(150)
-        self.font_combo.setFixedHeight(32)
+        self.font_combo.setFixedWidth(150); self.font_combo.setFixedHeight(32)
         self.font_combo.setStyleSheet(_FONTCOMBO_STYLE)
         self.font_combo.setCurrentFont(QFont("Segoe UI"))
         self.font_combo.currentFontChanged.connect(self._on_font_changed)
-        row.addWidget(self.font_combo)
+        row.addWidget(self.font_combo); row.addSpacing(4)
 
-        row.addSpacing(4)
-
-        # ── Tamaño ──
+        # Size
         self.size_combo = QComboBox()
-        self.size_combo.addItems([
-            "8", "9", "10", "11", "12", "14", "16", "18",
-            "20", "22", "24", "26", "28", "36", "48", "72",
-        ])
-        self.size_combo.setEditable(True)
-        self.size_combo.setCurrentText("14")
-        self.size_combo.setFixedWidth(62)
-        self.size_combo.setFixedHeight(32)
+        self.size_combo.addItems(["8","9","10","11","12","14","16","18","20","22","24","26","28","36","48","72"])
+        self.size_combo.setEditable(True); self.size_combo.setCurrentText("14")
+        self.size_combo.setFixedWidth(62); self.size_combo.setFixedHeight(32)
         self.size_combo.setStyleSheet(_COMBO_STYLE)
         self.size_combo.currentTextChanged.connect(self._on_size_changed)
         row.addWidget(self.size_combo)
 
-        row.addSpacing(6)
-        row.addWidget(ToolbarSeparator())
-        row.addSpacing(6)
+        row.addSpacing(6); row.addWidget(ToolbarSeparator()); row.addSpacing(6)
 
-        # ── Formato ──
-        self.bold_btn = self._make_btn("B", checkable=True, tooltip="Negrita (Ctrl+B)",
-                                       extra_style="font-weight: 800; font-family: 'Segoe UI';")
-        self.bold_btn.clicked.connect(self.toggle_bold)
-        row.addWidget(self.bold_btn)
+        # Format buttons
+        self.bold_btn = self._make_btn("B", True, "Negrita", extra="font-weight:800;")
+        self.bold_btn.clicked.connect(self.toggle_bold); row.addWidget(self.bold_btn)
 
-        self.italic_btn = self._make_btn("I", checkable=True, tooltip="Cursiva (Ctrl+I)",
-                                         extra_style="font-style: italic; font-family: 'Georgia';")
-        self.italic_btn.clicked.connect(self.toggle_italic)
-        row.addWidget(self.italic_btn)
+        self.italic_btn = self._make_btn("I", True, "Cursiva", extra="font-style:italic;font-family:'Georgia';")
+        self.italic_btn.clicked.connect(self.toggle_italic); row.addWidget(self.italic_btn)
 
-        self.underline_btn = self._make_btn("U", checkable=True, tooltip="Subrayado (Ctrl+U)",
-                                            extra_style="text-decoration: underline;")
-        self.underline_btn.clicked.connect(self.toggle_underline)
-        row.addWidget(self.underline_btn)
+        self.underline_btn = self._make_btn("U", True, "Subrayado", extra="text-decoration:underline;")
+        self.underline_btn.clicked.connect(self.toggle_underline); row.addWidget(self.underline_btn)
 
-        self.strike_btn = self._make_btn("S̶", checkable=True, tooltip="Tachado",
-                                         extra_style="font-size: 12px;")
-        self.strike_btn.clicked.connect(self.toggle_strikethrough)
-        row.addWidget(self.strike_btn)
+        self.strike_btn = self._make_btn("S", True, "Tachado", extra="text-decoration:line-through;font-size:12px;")
+        self.strike_btn.clicked.connect(self.toggle_strikethrough); row.addWidget(self.strike_btn)
 
-        row.addSpacing(6)
-        row.addWidget(ToolbarSeparator())
-        row.addSpacing(6)
+        row.addSpacing(6); row.addWidget(ToolbarSeparator()); row.addSpacing(6)
 
-        # ── Alineación ──
-        self.align_left_btn = self._make_btn("≡", checkable=True, tooltip="Alinear izquierda",
-                                             extra_style="font-size: 15px; letter-spacing: -1px;")
+        # Alignment
+        self.align_left_btn = self._make_btn("≡", True, "Izquierda", extra="font-size:15px;letter-spacing:-1px;")
         self.align_left_btn.setChecked(True)
-        self.align_left_btn.clicked.connect(
-            lambda: self._set_alignment(Qt.AlignmentFlag.AlignLeft)
-        )
+        self.align_left_btn.clicked.connect(lambda: self._set_alignment(Qt.AlignmentFlag.AlignLeft))
         row.addWidget(self.align_left_btn)
 
-        self.align_center_btn = self._make_btn("≡", checkable=True, tooltip="Centrar",
-                                               extra_style="font-size: 15px;")
-        self.align_center_btn.clicked.connect(
-            lambda: self._set_alignment(Qt.AlignmentFlag.AlignCenter)
-        )
+        self.align_center_btn = self._make_btn("≡", True, "Centrar", extra="font-size:15px;")
+        self.align_center_btn.clicked.connect(lambda: self._set_alignment(Qt.AlignmentFlag.AlignCenter))
         row.addWidget(self.align_center_btn)
 
-        self.align_right_btn = self._make_btn("≡", checkable=True, tooltip="Alinear derecha",
-                                              extra_style="font-size: 15px; letter-spacing: 1px;")
-        self.align_right_btn.clicked.connect(
-            lambda: self._set_alignment(Qt.AlignmentFlag.AlignRight)
-        )
+        self.align_right_btn = self._make_btn("≡", True, "Derecha", extra="font-size:15px;letter-spacing:1px;")
+        self.align_right_btn.clicked.connect(lambda: self._set_alignment(Qt.AlignmentFlag.AlignRight))
         row.addWidget(self.align_right_btn)
 
-        self.align_justify_btn = self._make_btn("▤", checkable=True, tooltip="Justificar",
-                                                extra_style="font-size: 14px;")
-        self.align_justify_btn.clicked.connect(
-            lambda: self._set_alignment(Qt.AlignmentFlag.AlignJustify)
-        )
+        self.align_justify_btn = self._make_btn("▤", True, "Justificar", extra="font-size:14px;")
+        self.align_justify_btn.clicked.connect(lambda: self._set_alignment(Qt.AlignmentFlag.AlignJustify))
         row.addWidget(self.align_justify_btn)
 
-        row.addSpacing(6)
-        row.addWidget(ToolbarSeparator())
-        row.addSpacing(6)
+        row.addSpacing(6); row.addWidget(ToolbarSeparator()); row.addSpacing(6)
 
-        # ── Color de texto ──
+        # Color
         self.color_btn = QPushButton()
         self.color_btn.setFixedSize(36, 30)
         self.color_btn.setToolTip("Color de texto")
         self.color_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._refresh_color_btn()
-        self.color_btn.clicked.connect(self.change_color)
+        self.color_btn.clicked.connect(self._show_color_palette)
         row.addWidget(self.color_btn)
 
-        row.addSpacing(6)
-        row.addWidget(ToolbarSeparator())
-        row.addSpacing(6)
+        row.addSpacing(6); row.addWidget(ToolbarSeparator()); row.addSpacing(6)
 
-        # ── Listas ──
-        self.bullet_btn = self._make_btn("•  —", checkable=False, tooltip="Lista con viñetas",
-                                         w=46, extra_style="font-size: 11px; letter-spacing: 1px;")
-        self.bullet_btn.clicked.connect(self.insert_bullet_list)
-        row.addWidget(self.bullet_btn)
+        # Lists
+        b = self._make_btn("•  —", False, "Viñetas", w=46, extra="font-size:11px;")
+        b.clicked.connect(self.insert_bullet_list); row.addWidget(b)
 
-        self.number_btn = self._make_btn("1. —", checkable=False, tooltip="Lista numerada",
-                                         w=46, extra_style="font-size: 11px;")
-        self.number_btn.clicked.connect(self.insert_number_list)
-        row.addWidget(self.number_btn)
+        b = self._make_btn("1. —", False, "Numerada", w=46, extra="font-size:11px;")
+        b.clicked.connect(self.insert_number_list); row.addWidget(b)
 
-        row.addSpacing(6)
-        row.addWidget(ToolbarSeparator())
-        row.addSpacing(6)
+        row.addSpacing(6); row.addWidget(ToolbarSeparator()); row.addSpacing(6)
 
-        # ── Insertar ──
-        self.image_btn = self._make_btn("🖼", checkable=False, tooltip="Insertar imagen",
-                                        w=34, extra_style="font-size: 14px;")
-        self.image_btn.clicked.connect(self.insert_image)
-        row.addWidget(self.image_btn)
+        # Insert
+        b = self._make_btn("🖼", False, "Imagen", w=34, extra="font-size:14px;")
+        b.clicked.connect(self.insert_image); row.addWidget(b)
 
-        self.file_btn = self._make_btn("📎", checkable=False, tooltip="Adjuntar archivo",
-                                       w=34, extra_style="font-size: 14px;")
-        self.file_btn.clicked.connect(self.insert_file)
-        row.addWidget(self.file_btn)
+        b = self._make_btn("📎", False, "Archivo", w=34, extra="font-size:14px;")
+        b.clicked.connect(self.insert_file); row.addWidget(b)
 
         row.addStretch()
-        return toolbar
+        return tb
 
     def _build_editor(self) -> QTextEdit:
         self.editor = QTextEdit()
         self.editor.setObjectName("rtEditor")
-        self.editor.setStyleSheet(
-            """
+        self.editor.setStyleSheet("""
             #rtEditor {
-                border: 1.5px solid #e2e8f0;
-                border-bottom-left-radius: 10px;
-                border-bottom-right-radius: 10px;
-                padding: 14px 16px;
-                background-color: #ffffff;
-                color: #1e293b;
-                font-size: 14px;
-                font-family: 'Segoe UI';
-                line-height: 1.6;
-                selection-background-color: #c7d7fe;
-                selection-color: #1e293b;
+                border:1.5px solid #e2e8f0; border-bottom-left-radius:10px; border-bottom-right-radius:10px;
+                padding:14px 16px; background:#fff; color:#1e293b;
+                font-size:14px; font-family:'Segoe UI'; line-height:1.6;
+                selection-background-color:#c7d7fe; selection-color:#1e293b;
             }
-            """
-        )
+        """)
         self.editor.document().setDefaultFont(QFont("Segoe UI", 14))
 
-        # Aplicar formato inicial al cursor para que el texto nuevo use la fuente/tamaño correctos
         fmt = QTextCharFormat()
         fmt.setFont(QFont("Segoe UI", 14))
         fmt.setForeground(self._current_color)
         self.editor.setCurrentCharFormat(fmt)
 
-        # Señales
         self.editor.selectionChanged.connect(self.update_format_buttons)
         self.editor.cursorPositionChanged.connect(self.update_format_buttons)
-
-        # Filtro para redimensionar imágenes con doble clic
         self.editor.viewport().installEventFilter(self)
+
+        # Context menu
+        self.editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.editor.customContextMenuRequested.connect(self._show_context_menu)
 
         return self.editor
 
-    # ─── HELPERS ────────────────────────────────────────────────────────────
+    # ── Helpers ─────────────────────────────────────────────────────────────
 
-    def _make_btn(self, text: str, checkable: bool = False, tooltip: str = "",
-                  w: int = 32, extra_style: str = "") -> QPushButton:
-        """Crea un botón de toolbar con estilos uniformes."""
+    def _make_btn(self, text, checkable=False, tooltip="", w=32, extra=""):
         btn = QPushButton(text)
         btn.setCheckable(checkable)
         btn.setFixedSize(w, 30)
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        style = _btn_style(w=w)
-        if extra_style:
-            # Inyectar estilos extra dentro del bloque QPushButton {}
-            style = style.replace(
-                "font-family: 'Segoe UI';",
-                f"font-family: 'Segoe UI'; {extra_style}"
-            )
-        btn.setStyleSheet(style)
+        s = _btn_style(w=w)
+        if extra:
+            s = s.replace("font-family:'Segoe UI';", f"font-family:'Segoe UI';{extra}")
+        btn.setStyleSheet(s)
         return btn
 
     def _refresh_color_btn(self):
-        """Actualiza el icono del botón de color con el color actual."""
-        px = _make_color_icon(self._current_color, 14)
-        # Construir un texto con un cuadrado unicode coloreado via hoja de estilo
-        c = self._current_color.name()
         self.color_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                border-radius: 6px;
-                min-width: 36px;
-                min-height: 30px;
-                max-height: 30px;
-            }}
-            QPushButton:hover {{
-                background-color: #f1f5f9;
-            }}
-            QPushButton::after {{
-                content: "";
-            }}
-            """
+            "QPushButton{background:transparent;border:none;border-radius:6px;"
+            "min-width:36px;min-height:30px;max-height:30px;}"
+            "QPushButton:hover{background:#f1f5f9;}"
         )
-        # Usar el pixmap como icono del botón
-        from PyQt6.QtGui import QIcon
-        # Hacer icono compuesto: "A" con raya de color debajo
         pix = QPixmap(28, 28)
         pix.fill(Qt.GlobalColor.transparent)
         p = QPainter(pix)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        # Letra A
         p.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
         p.setPen(QColor("#1e293b"))
         p.drawText(0, 0, 28, 20, Qt.AlignmentFlag.AlignCenter, "A")
-        # Barra de color
         p.setBrush(self._current_color)
         p.setPen(Qt.PenStyle.NoPen)
         p.drawRoundedRect(4, 21, 20, 5, 2, 2)
@@ -554,170 +814,219 @@ class RichTextEditor(QWidget):
         self.color_btn.setIcon(QIcon(pix))
         self.color_btn.setIconSize(QSize(28, 28))
 
-    def _set_alignment(self, alignment):
-        """Establece la alineación y actualiza los botones."""
-        self.editor.setAlignment(alignment)
+    def _set_alignment(self, a):
+        self.editor.setAlignment(a)
         self._updating_toolbar = True
-        self.align_left_btn.setChecked(alignment == Qt.AlignmentFlag.AlignLeft)
-        self.align_center_btn.setChecked(alignment == Qt.AlignmentFlag.AlignCenter)
-        self.align_right_btn.setChecked(alignment == Qt.AlignmentFlag.AlignRight)
-        self.align_justify_btn.setChecked(alignment == Qt.AlignmentFlag.AlignJustify)
+        self.align_left_btn.setChecked(a == Qt.AlignmentFlag.AlignLeft)
+        self.align_center_btn.setChecked(a == Qt.AlignmentFlag.AlignCenter)
+        self.align_right_btn.setChecked(a == Qt.AlignmentFlag.AlignRight)
+        self.align_justify_btn.setChecked(a == Qt.AlignmentFlag.AlignJustify)
         self._updating_toolbar = False
 
-    # ─── API PÚBLICA ─────────────────────────────────────────────────────────
+    def _get_overlay(self) -> ImageSelectionOverlay:
+        if self._overlay is None:
+            self._overlay = ImageSelectionOverlay(self, self.editor, self.editor.viewport())
+        return self._overlay
+
+    # ── Image detection ─────────────────────────────────────────────────────
+
+    def _find_image_at_pos(self, pos):
+        cursor = self.editor.cursorForPosition(pos)
+        for direction in (QTextCursor.MoveOperation.Right, QTextCursor.MoveOperation.Left):
+            c = QTextCursor(cursor)
+            c.movePosition(direction, QTextCursor.MoveMode.KeepAnchor, 1)
+            fmt = c.charFormat()
+            if fmt.isImageFormat():
+                return c, fmt.toImageFormat()
+        return None, None
+
+    def _calc_image_rect(self, cursor: QTextCursor, img_fmt: QTextImageFormat) -> QRect:
+        """Calcula el rectángulo de la imagen en coordenadas del viewport."""
+        w = img_fmt.width()
+        h = img_fmt.height()
+        if w <= 0 or h <= 0:
+            name = img_fmt.name()
+            res = self.editor.document().resource(QTextDocument.ResourceType.ImageResource, QUrl(name))
+            if isinstance(res, QImage):
+                w, h = res.width(), res.height()
+            else:
+                w, h = 300, 200
+
+        # Obtener posición de inicio
+        temp = QTextCursor(cursor)
+        temp.setPosition(cursor.selectionStart())
+        r = self.editor.cursorRect(temp)
+        return QRect(r.left(), r.top(), int(w), int(h))
+
+    # ── API pública ─────────────────────────────────────────────────────────
 
     def setHtml(self, html):
-        """Establece contenido HTML en el editor."""
         try:
             if html and isinstance(html, str):
                 self.editor.setHtml(html)
             else:
                 self.editor.clear()
         except Exception as e:
-            logger.error(f"Error al establecer HTML: {e}")
+            logger.error(f"Error setHtml: {e}")
             self.editor.clear()
 
     def toHtml(self) -> str:
-        """Retorna el contenido como HTML."""
         try:
             html = self.editor.toHtml()
             if not html or html in ("<p></p>", "<p><br></p>"):
                 return ""
             return html
         except Exception as e:
-            logger.error(f"Error al obtener HTML: {e}")
+            logger.error(f"Error toHtml: {e}")
             return ""
 
     def toPlainText(self) -> str:
-        """Retorna el contenido como texto plano."""
         try:
             return self.editor.toPlainText()
         except Exception as e:
-            logger.error(f"Error al obtener texto plano: {e}")
+            logger.error(f"Error toPlainText: {e}")
             return ""
 
     def clear(self):
-        """Limpia el editor."""
         self.editor.clear()
 
-    # ─── ACCIONES DE FORMATO ─────────────────────────────────────────────────
+    # ── Format actions ──────────────────────────────────────────────────────
 
-    def _on_font_changed(self, font: QFont):
-        """Cambia la fuente — aplica al cursor aunque no haya selección."""
+    def _on_font_changed(self, font):
         if self._updating_toolbar:
             return
-        fmt = QTextCharFormat()
-        fmt.setFontFamilies([font.family()])
-        self.editor.mergeCurrentCharFormat(fmt)
+        f = QTextCharFormat()
+        f.setFontFamilies([font.family()])
+        self.editor.mergeCurrentCharFormat(f)
         self.editor.setFocus()
 
-    def _on_size_changed(self, size_text: str):
-        """Cambia el tamaño — aplica al cursor aunque no haya selección."""
+    def _on_size_changed(self, txt):
         if self._updating_toolbar:
             return
         try:
-            size = int(size_text)
-            if size <= 0:
-                return
-            fmt = QTextCharFormat()
-            fmt.setFontPointSize(size)
-            self.editor.mergeCurrentCharFormat(fmt)
+            sz = int(txt)
+            if sz <= 0: return
+            f = QTextCharFormat()
+            f.setFontPointSize(sz)
+            self.editor.mergeCurrentCharFormat(f)
             self.editor.setFocus()
         except ValueError:
             pass
 
     def toggle_bold(self):
-        fmt = self.editor.currentCharFormat()
-        is_bold = fmt.fontWeight() == QFont.Weight.Bold
-        new_fmt = QTextCharFormat()
-        new_fmt.setFontWeight(
-            QFont.Weight.Normal if is_bold else QFont.Weight.Bold
-        )
-        self.editor.mergeCurrentCharFormat(new_fmt)
+        f = QTextCharFormat()
+        f.setFontWeight(QFont.Weight.Normal if self.editor.currentCharFormat().fontWeight() == QFont.Weight.Bold else QFont.Weight.Bold)
+        self.editor.mergeCurrentCharFormat(f)
 
     def toggle_italic(self):
-        fmt = self.editor.currentCharFormat()
-        new_fmt = QTextCharFormat()
-        new_fmt.setFontItalic(not fmt.fontItalic())
-        self.editor.mergeCurrentCharFormat(new_fmt)
+        f = QTextCharFormat()
+        f.setFontItalic(not self.editor.currentCharFormat().fontItalic())
+        self.editor.mergeCurrentCharFormat(f)
 
     def toggle_underline(self):
-        fmt = self.editor.currentCharFormat()
-        new_fmt = QTextCharFormat()
-        new_fmt.setFontUnderline(not fmt.fontUnderline())
-        self.editor.mergeCurrentCharFormat(new_fmt)
+        f = QTextCharFormat()
+        f.setFontUnderline(not self.editor.currentCharFormat().fontUnderline())
+        self.editor.mergeCurrentCharFormat(f)
 
     def toggle_strikethrough(self):
-        fmt = self.editor.currentCharFormat()
-        new_fmt = QTextCharFormat()
-        new_fmt.setFontStrikeOut(not fmt.fontStrikeOut())
-        self.editor.mergeCurrentCharFormat(new_fmt)
+        f = QTextCharFormat()
+        f.setFontStrikeOut(not self.editor.currentCharFormat().fontStrikeOut())
+        self.editor.mergeCurrentCharFormat(f)
 
-    def change_color(self):
-        color = QColorDialog.getColor(self._current_color, self, "Seleccionar color de texto")
-        if color.isValid():
-            self._current_color = color
+    def _show_color_palette(self):
+        popup = ColorPalettePopup(self._current_color, self)
+        popup.move(self.color_btn.mapToGlobal(QPoint(0, self.color_btn.height())))
+        popup.exec()
+        if popup.selected_color:
+            self._current_color = popup.selected_color
             self._refresh_color_btn()
-            fmt = QTextCharFormat()
-            fmt.setForeground(color)
-            self.editor.mergeCurrentCharFormat(fmt)
+            f = QTextCharFormat()
+            f.setForeground(popup.selected_color)
+            self.editor.mergeCurrentCharFormat(f)
             self.editor.setFocus()
 
     def insert_bullet_list(self):
-        cursor = self.editor.textCursor()
-        cursor.insertList(QTextListFormat.Style.ListDisc)
+        self.editor.textCursor().insertList(QTextListFormat.Style.ListDisc)
 
     def insert_number_list(self):
-        cursor = self.editor.textCursor()
-        cursor.insertList(QTextListFormat.Style.ListDecimal)
+        self.editor.textCursor().insertList(QTextListFormat.Style.ListDecimal)
 
     def insert_image(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Seleccionar Imagen",
-            "",
-            "Imágenes (*.png *.jpg *.jpeg *.gif *.bmp *.webp)",
-        )
-        if file_path:
+        path, _ = QFileDialog.getOpenFileName(self, "Seleccionar Imagen", "",
+            "Imágenes (*.png *.jpg *.jpeg *.gif *.bmp *.webp)")
+        if path:
             try:
-                with open(file_path, "rb") as image_file:
-                    encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
-
-                ext = file_path.lower().split(".")[-1]
-                mime_type = f"image/{ext}" if ext != "jpg" else "image/jpeg"
-                img_tag = (
-                    f'<img src="data:{mime_type};base64,{encoded_string}" '
-                    f'alt="Imagen incrustada" style="max-width: 100%;">'
+                with open(path, "rb") as f:
+                    enc = base64.b64encode(f.read()).decode("utf-8")
+                ext = path.lower().rsplit(".", 1)[-1]
+                mime = f"image/{ext}" if ext != "jpg" else "image/jpeg"
+                self.editor.insertHtml(
+                    f'<img src="data:{mime};base64,{enc}" alt="Imagen" style="max-width:100%;">'
                 )
-                self.editor.insertHtml(img_tag)
                 self.editor.insertPlainText("\n")
             except Exception as e:
-                logger.error(f"Error al cargar la imagen: {e}")
-                QMessageBox.critical(self, "Error", "No se pudo cargar la imagen seleccionada.")
+                logger.error(f"Error imagen: {e}")
+                QMessageBox.critical(self, "Error", "No se pudo cargar la imagen.")
 
     def insert_file(self):
-        """Adjuntar un archivo como enlace referenciado localmente."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Adjuntar Archivo",
-            "",
-            "Todos los archivos (*.*)",
-        )
-        if file_path:
-            file_name = os.path.basename(file_path)
-            safe_path = file_path.replace(" ", "%20")
-            html = f'<a href="file:///{safe_path}">📎 {file_name}</a>'
-            self.editor.insertHtml(html)
+        path, _ = QFileDialog.getOpenFileName(self, "Adjuntar Archivo", "", "Todos (*.*)")
+        if path:
+            name = os.path.basename(path)
+            safe = path.replace(" ", "%20")
+            self.editor.insertHtml(f'<a href="file:///{safe}">📎 {name}</a>')
             self.editor.insertPlainText(" ")
 
-    # ─── SINCRONIZACIÓN TOOLBAR ───────────────────────────────────────────────
+    # ── Context menu ────────────────────────────────────────────────────────
+
+    def _show_context_menu(self, pos):
+        c_img, i_fmt = self._find_image_at_pos(pos)
+        menu = self.editor.createStandardContextMenu()
+        menu.setStyleSheet(
+            "QMenu{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px;"
+            "font-family:'Segoe UI';font-size:12px;}"
+            "QMenu::item{padding:6px 16px;border-radius:4px;}"
+            "QMenu::item:selected{background:#eef2ff;color:#4361ee;}"
+            "QMenu::separator{height:1px;background:#e2e8f0;margin:4px 8px;}"
+        )
+        if c_img and i_fmt:
+            menu.addSeparator()
+            im = menu.addMenu("🖼 Imagen")
+            al = im.addAction("◧ Alinear izquierda")
+            ac = im.addAction("◫ Centrar")
+            ar = im.addAction("◨ Alinear derecha")
+            im.addSeparator()
+            ars = im.addAction("⇲ Redimensionar...")
+            ad = im.addAction("🗑 Eliminar")
+
+            action = menu.exec(self.editor.viewport().mapToGlobal(pos))
+            if not action:
+                return
+            if action in (al, ac, ar):
+                align = {al: Qt.AlignmentFlag.AlignLeft, ac: Qt.AlignmentFlag.AlignCenter,
+                         ar: Qt.AlignmentFlag.AlignRight}[action]
+                bf = QTextBlockFormat()
+                bf.setAlignment(align)
+                c_img.mergeBlockFormat(bf)
+            elif action == ars:
+                w, h = i_fmt.width(), i_fmt.height()
+                if w <= 0 or h <= 0: w, h = 300, 200
+                d = ImageResizeDialog(w, h, self)
+                if d.exec() == QDialog.DialogCode.Accepted:
+                    nw, nh = d.get_data()
+                    nf = QTextImageFormat(i_fmt)
+                    nf.setWidth(nw); nf.setHeight(nh)
+                    c_img.setCharFormat(nf)
+            elif action == ad:
+                c_img.deleteChar()
+        else:
+            menu.exec(self.editor.viewport().mapToGlobal(pos))
+
+    # ── Sync toolbar ────────────────────────────────────────────────────────
 
     def update_format_buttons(self):
-        """Actualiza el estado de los botones según el formato en el cursor."""
         if self._updating_toolbar:
             return
         self._updating_toolbar = True
-
         fmt = self.editor.currentCharFormat()
 
         self.bold_btn.setChecked(fmt.fontWeight() == QFont.Weight.Bold)
@@ -725,28 +1034,22 @@ class RichTextEditor(QWidget):
         self.underline_btn.setChecked(fmt.fontUnderline())
         self.strike_btn.setChecked(fmt.fontStrikeOut())
 
-        # Alineación
-        alignment = self.editor.alignment()
-        self.align_left_btn.setChecked(
-            alignment == Qt.AlignmentFlag.AlignLeft or alignment == Qt.AlignmentFlag.AlignAbsolute
-        )
-        self.align_center_btn.setChecked(alignment == Qt.AlignmentFlag.AlignCenter)
-        self.align_right_btn.setChecked(alignment == Qt.AlignmentFlag.AlignRight)
-        self.align_justify_btn.setChecked(alignment == Qt.AlignmentFlag.AlignJustify)
+        a = self.editor.alignment()
+        self.align_left_btn.setChecked(a == Qt.AlignmentFlag.AlignLeft or a == Qt.AlignmentFlag.AlignAbsolute)
+        self.align_center_btn.setChecked(a == Qt.AlignmentFlag.AlignCenter)
+        self.align_right_btn.setChecked(a == Qt.AlignmentFlag.AlignRight)
+        self.align_justify_btn.setChecked(a == Qt.AlignmentFlag.AlignJustify)
 
-        # Fuente
-        family = fmt.fontFamilies()
-        if family:
-            idx = self.font_combo.findText(family[0])
+        fam = fmt.fontFamilies()
+        if fam:
+            idx = self.font_combo.findText(fam[0])
             if idx >= 0:
                 self.font_combo.setCurrentIndex(idx)
 
-        # Tamaño
-        size = fmt.fontPointSize()
-        if size > 0:
-            self.size_combo.setCurrentText(str(int(size)))
+        sz = fmt.fontPointSize()
+        if sz > 0:
+            self.size_combo.setCurrentText(str(int(sz)))
 
-        # Color actual
         fg = fmt.foreground().color()
         if fg.isValid() and fg != self._current_color:
             self._current_color = fg
@@ -754,49 +1057,19 @@ class RichTextEditor(QWidget):
 
         self._updating_toolbar = False
 
-    # ─── FILTRO DE EVENTOS (REDIMENSIÓN DE IMÁGENES) ──────────────────────────
+    # ── Event filter ────────────────────────────────────────────────────────
 
     def eventFilter(self, obj, event):
-        """Intercepta doble clic para redimensionar imágenes embebidas."""
-        if obj == self.editor.viewport() and event.type() == QEvent.Type.MouseButtonDblClick:
-            cursor = self.editor.cursorForPosition(event.pos())
+        if obj != self.editor.viewport():
+            return super().eventFilter(obj, event)
 
-            cursor.movePosition(
-                QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, 1
-            )
-            fmt_char = cursor.charFormat()
-
-            if not fmt_char.isImageFormat():
-                cursor = self.editor.cursorForPosition(event.pos())
-                cursor.movePosition(
-                    QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.KeepAnchor, 1
-                )
-                fmt_char = cursor.charFormat()
-
-            if fmt_char.isImageFormat():
-                img_fmt = fmt_char.toImageFormat()
-                w = img_fmt.width()
-                h = img_fmt.height()
-
-                if w <= 0 or h <= 0:
-                    name = img_fmt.name()
-                    res = self.editor.document().resource(
-                        QTextDocument.ResourceType.ImageResource, QUrl(name)
-                    )
-                    if isinstance(res, QImage):
-                        w = res.width()
-                        h = res.height()
-                    else:
-                        w, h = 300, 300
-
-                dialog = ImageResizeDialog(w, h, self)
-                if dialog.exec() == QDialog.DialogCode.Accepted:
-                    new_w, new_h = dialog.get_data()
-                    img_fmt.setWidth(new_w)
-                    img_fmt.setHeight(new_h)
-                    cursor.setCharFormat(img_fmt)
-                    cursor.clearSelection()
-                    self.editor.setTextCursor(cursor)
-                return True
+        # Clic en imagen → activar overlay
+        if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+            c_img, i_fmt = self._find_image_at_pos(event.pos())
+            if c_img and i_fmt:
+                overlay = self._get_overlay()
+                rect = self._calc_image_rect(c_img, i_fmt)
+                overlay.activate(c_img, i_fmt, rect)
+                return True  # Consumir: el overlay maneja desde aquí
 
         return super().eventFilter(obj, event)
