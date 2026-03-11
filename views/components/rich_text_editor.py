@@ -37,6 +37,7 @@ from PyQt6.QtGui import (
     QTextImageFormat,
     QTextBlockFormat,
     QPen,
+    QTextFormat,
 )
 import logging
 import base64
@@ -962,14 +963,48 @@ class RichTextEditor(QWidget):
     def _on_size_changed(self, txt):
         if self._updating_toolbar:
             return
+        import re
+        m = re.search(r'\d+', str(txt))
+        if not m: return
+        
         try:
-            sz = int(txt)
+            sz = int(m.group())
             if sz <= 0: return
+
+            cursor = self.editor.textCursor()
+            cursor.beginEditBlock()
+            
+            # Formato de fuente con doble unidad para machacar cualquier CSS previo
             f = QTextCharFormat()
             f.setFontPointSize(sz)
-            self.editor.mergeCurrentCharFormat(f)
-        except ValueError:
-            pass
+            f.setProperty(QTextFormat.Property.FontPixelSize, sz)
+            
+            if cursor.hasSelection():
+                # 1. Quitar 'Heading' (H1-H6) de todos los bloques en la selección
+                # Esto es vital porque los headings ignoran el tamaño de fuente en el visor de Qt
+                start = cursor.selectionStart()
+                end = cursor.selectionEnd()
+                block = self.editor.document().findBlock(start)
+                while block.isValid() and block.position() <= end:
+                    bf = block.blockFormat()
+                    if bf.headingLevel() > 0:
+                        bf.setHeadingLevel(0)
+                        bc = self.editor.textCursor()
+                        bc.setPosition(block.position())
+                        bc.setBlockFormat(bf)
+                    block = block.next()
+                
+                # 2. Aplicar el tamaño a toda la selección
+                cursor.mergeCharFormat(f)
+            else:
+                # 3. Si no hay selección, aplicar al formato actual
+                self.editor.mergeCurrentCharFormat(f)
+
+            cursor.endEditBlock()
+            self.editor.setFocus()
+            self.editor.viewport().update()
+        except Exception as e:
+            logger.error(f"Error cambiando tamaño de fuente: {e}")
 
     def toggle_bold(self):
         f = QTextCharFormat()
