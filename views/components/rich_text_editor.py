@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
     QMenu,
+    QCompleter,
 )
 from PyQt6.QtCore import Qt, QSize, QUrl, QEvent, QPoint, QTimer, QRect, QRectF, pyqtSignal
 from PyQt6.QtGui import (
@@ -672,8 +673,17 @@ class RichTextEditor(QWidget):
         self.font_combo = QFontComboBox()
         self.font_combo.setFixedWidth(150); self.font_combo.setFixedHeight(32)
         self.font_combo.setStyleSheet(_FONTCOMBO_STYLE)
+
+        # Búsqueda: habilitar edición y autocompletado inteligente
+        self.font_combo.setEditable(True)
+        completer = self.font_combo.completer()
+        if completer:
+            completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            completer.setFilterMode(Qt.MatchFlag.MatchContains)
+
         self.font_combo.setCurrentFont(QFont("Segoe UI"))
         self.font_combo.currentFontChanged.connect(self._on_font_changed)
+        self.font_combo.activated.connect(lambda _: self.editor.setFocus())
         row.addWidget(self.font_combo); row.addSpacing(4)
 
         # Size
@@ -683,6 +693,7 @@ class RichTextEditor(QWidget):
         self.size_combo.setFixedWidth(62); self.size_combo.setFixedHeight(32)
         self.size_combo.setStyleSheet(_COMBO_STYLE)
         self.size_combo.currentTextChanged.connect(self._on_size_changed)
+        self.size_combo.activated.connect(lambda _: self.editor.setFocus())
         row.addWidget(self.size_combo)
 
         row.addSpacing(6); row.addWidget(ToolbarSeparator()); row.addSpacing(6)
@@ -947,7 +958,6 @@ class RichTextEditor(QWidget):
         f = QTextCharFormat()
         f.setFontFamilies([font.family()])
         self.editor.mergeCurrentCharFormat(f)
-        self.editor.setFocus()
 
     def _on_size_changed(self, txt):
         if self._updating_toolbar:
@@ -958,7 +968,6 @@ class RichTextEditor(QWidget):
             f = QTextCharFormat()
             f.setFontPointSize(sz)
             self.editor.mergeCurrentCharFormat(f)
-            self.editor.setFocus()
         except ValueError:
             pass
 
