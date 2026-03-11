@@ -2,7 +2,7 @@ import sys
 import os
 from dotenv import load_dotenv
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QIcon, QPixmap, QPainter
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QFontDatabase
 from PyQt6.QtCore import Qt
 
 
@@ -30,10 +30,29 @@ from views.login_window import LoginWindow
 from controllers.api_client import APIClient
 
 
+def load_custom_fonts():
+    """Registra las fuentes personalizadas embebidas en assets/fonts."""
+    fonts_base = resource_path(os.path.join("assets", "fonts"))
+    registered = 0
+    for root, dirs, files in os.walk(fonts_base):
+        for filename in files:
+            if filename.lower().endswith((".ttf", ".otf")):
+                font_path = os.path.join(root, filename)
+                font_id = QFontDatabase.addApplicationFont(font_path)
+                if font_id != -1:
+                    registered += 1
+                else:
+                    print(f"[WARNING] No se pudo cargar la fuente: {filename}")
+    print(f"[OK] {registered} fuentes personalizadas registradas.")
+
+
 class AdminApplication:
     def __init__(self):
         self.app = QApplication(sys.argv)
         self.app.setStyle("Fusion")
+
+        # Registrar fuentes personalizadas
+        load_custom_fonts()
         self.app.setApplicationName("Varchate Admin")
 
         # === CORREGIR RUTA DEL ICONO Y EVITAR DISTORSIÓN ===
