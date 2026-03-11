@@ -831,32 +831,81 @@ class RichTextEditor(QWidget):
     # ── Image detection ─────────────────────────────────────────────────────
 
     def _find_image_at_pos(self, pos):
+        """Busca una imagen en la posición del clic escaneando los fragmentos del bloque."""
+        doc = self.editor.document()
         cursor = self.editor.cursorForPosition(pos)
+
+        # 1) Intento rápido: verificar carácter a derecha e izquierda
         for direction in (QTextCursor.MoveOperation.Right, QTextCursor.MoveOperation.Left):
             c = QTextCursor(cursor)
             c.movePosition(direction, QTextCursor.MoveMode.KeepAnchor, 1)
             fmt = c.charFormat()
             if fmt.isImageFormat():
                 return c, fmt.toImageFormat()
+
+        # 2) Escanear fragmentos del bloque actual y adyacentes
+        block = cursor.block()
+        blocks_to_check = [block]
+        if block.previous().isValid():
+            blocks_to_check.append(block.previous())
+        if block.next().isValid():
+            blocks_to_check.append(block.next())
+
+        for blk in blocks_to_check:
+            it = blk.begin()
+            while it != blk.end():
+                frag = it.fragment()
+                if frag.isValid():
+                    frag_fmt = frag.charFormat()
+                    if frag_fmt.isImageFormat():
+                        # Crear cursor que selecciona esta imagen
+                        c = QTextCursor(doc)
+                        c.setPosition(frag.position())
+                        c.setPosition(frag.position() + frag.length(),
+                                      QTextCursor.MoveMode.KeepAnchor)
+                        img_fmt = frag_fmt.toImageFormat()
+                        # Verificar si el clic cae dentro del rect de esta imagen
+                        rect = self._calc_image_rect_for(c, img_fmt)
+                        if rect.isValid() and rect.contains(pos):
+                            return c, img_fmt
+                it += 1
+
         return None, None
 
-    def _calc_image_rect(self, cursor: QTextCursor, img_fmt: QTextImageFormat) -> QRect:
-        """Calcula el rectángulo de la imagen en coordenadas del viewport."""
+    def _calc_image_rect_for(self, cursor: QTextCursor, img_fmt: QTextImageFormat) -> QRect:
+        """Calcula el rectángulo renderizado de la imagen en coordenadas del viewport."""
+        doc = self.editor.document()
+
+        # Obtener dimensiones reales
         w = img_fmt.width()
         h = img_fmt.height()
         if w <= 0 or h <= 0:
             name = img_fmt.name()
-            res = self.editor.document().resource(QTextDocument.ResourceType.ImageResource, QUrl(name))
+            res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl(name))
             if isinstance(res, QImage):
+                w, h = res.width(), res.height()
+            elif isinstance(res, QPixmap):
                 w, h = res.width(), res.height()
             else:
                 w, h = 300, 200
 
-        # Obtener posición de inicio
+        # Limitar al ancho del viewport (simula max-width:100%)
+        vp_w = self.editor.viewport().width() - 32  # padding
+        if w > vp_w:
+            ratio = vp_w / w
+            w = vp_w
+            h = int(h * ratio)
+
+        # Obtener posición superior-izquierda via cursor rect
         temp = QTextCursor(cursor)
         temp.setPosition(cursor.selectionStart())
         r = self.editor.cursorRect(temp)
+
         return QRect(r.left(), r.top(), int(w), int(h))
+
+    def _calc_image_rect(self, cursor: QTextCursor, img_fmt: QTextImageFormat) -> QRect:
+        """Alias público para compatibilidad con el overlay."""
+        return self._calc_image_rect_for(cursor, img_fmt)
 
     # ── API pública ─────────────────────────────────────────────────────────
 
