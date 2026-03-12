@@ -956,9 +956,13 @@ class RichTextEditor(QWidget):
     def _on_font_changed(self, font):
         if self._updating_toolbar:
             return
-        f = QTextCharFormat()
-        f.setFontFamilies([font.family()])
-        self.editor.mergeCurrentCharFormat(f)
+            
+        fam = font.family()
+        
+        def modifier(fmt: QTextCharFormat):
+            fmt.setFontFamilies([fam])
+            
+        self._apply_format_deeply(modifier)
 
     def _on_size_changed(self, txt):
         if self._updating_toolbar:
@@ -971,40 +975,69 @@ class RichTextEditor(QWidget):
             sz = int(m.group())
             if sz <= 0: return
 
-            cursor = self.editor.textCursor()
-            cursor.beginEditBlock()
+            def modifier(fmt: QTextCharFormat):
+                fmt.setFontPointSize(sz)
+                fmt.setProperty(QTextFormat.Property.FontPixelSize, sz)
             
-            # Formato de fuente con doble unidad para machacar cualquier CSS previo
-            f = QTextCharFormat()
-            f.setFontPointSize(sz)
-            f.setProperty(QTextFormat.Property.FontPixelSize, sz)
+            self._apply_format_deeply(modifier)
             
-            if cursor.hasSelection():
-                # 1. Quitar 'Heading' (H1-H6) de todos los bloques en la selección
-                # Esto es vital porque los headings ignoran el tamaño de fuente en el visor de Qt
-                start = cursor.selectionStart()
-                end = cursor.selectionEnd()
-                block = self.editor.document().findBlock(start)
-                while block.isValid() and block.position() <= end:
-                    bf = block.blockFormat()
-                    if bf.headingLevel() > 0:
-                        bf.setHeadingLevel(0)
-                        bc = self.editor.textCursor()
-                        bc.setPosition(block.position())
-                        bc.setBlockFormat(bf)
-                    block = block.next()
-                
-                # 2. Aplicar el tamaño a toda la selección
-                cursor.mergeCharFormat(f)
-            else:
-                # 3. Si no hay selección, aplicar al formato actual
-                self.editor.mergeCurrentCharFormat(f)
-
-            cursor.endEditBlock()
             self.editor.setFocus()
             self.editor.viewport().update()
         except Exception as e:
             logger.error(f"Error cambiando tamaño de fuente: {e}")
+
+    def _apply_format_deeply(self, modifier_func):
+        """
+        Aplica un cambio de formato de forma profunda a toda la selección,
+        iterando fragmento a fragmento para machacar estilos previos si es necesario.
+        """
+        cursor = self.editor.textCursor()
+        if not cursor.hasSelection():
+            # Si no hay selección, aplicar al formato actual
+            fmt = self.editor.currentCharFormat()
+            modifier_func(fmt)
+            self.editor.setCurrentCharFormat(fmt)
+            return
+
+        cursor.beginEditBlock()
+        try:
+            start = cursor.selectionStart()
+            end = cursor.selectionEnd()
+            
+            # Crear un cursor para iterar
+            it_cursor = QTextCursor(self.editor.document())
+            it_cursor.setPosition(start)
+            
+            while it_cursor.position() < end:
+                # Moverse al siguiente fragmento o final de la selección
+                it_cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
+                
+                # Obtener formato del fragmento actual
+                fmt = it_cursor.charFormat()
+                
+                # Aplicar modificaciones
+                modifier_func(fmt)
+                
+                # También resetear HeadingLevel si estamos cambiando tamaño
+                # (Qt visualizer ignora font size en headings)
+                block = it_cursor.block()
+                bf = block.blockFormat()
+                if bf.headingLevel() > 0:
+                    bf.setHeadingLevel(0)
+                    bc = QTextCursor(block)
+                    bc.setBlockFormat(bf)
+
+                # Aplicar el formato modificado al fragmento
+                it_cursor.setCharFormat(fmt)
+                
+                # Colapsar cursor al final del fragmento procesado para la siguiente iteración
+                it_cursor.setPosition(it_cursor.position())
+                
+                # Si el cursor se quedó estancado o pasó el final, salir
+                if it_cursor.position() >= end:
+                    break
+        finally:
+            cursor.endEditBlock()
 
     def toggle_bold(self):
         f = QTextCharFormat()
