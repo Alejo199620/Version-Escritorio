@@ -732,7 +732,7 @@ class QuestionItemWidget(QWidget):
         meta_layout = QHBoxLayout()
         meta_layout.setSpacing(12)
 
-        puntos_label = QLabel(f"⚡ {self.pregunta.get('puntos', 0)} puntos")
+        puntos_label = QLabel(f"{self.pregunta.get('puntos', 0)} puntos")
         puntos_label.setStyleSheet("color: #f8961e; font-size: 11px; font-weight: 500;")
         meta_layout.addWidget(puntos_label)
 

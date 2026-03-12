@@ -703,7 +703,7 @@ class DashboardView(QWidget):
 
     def _quick_update_usuarios(self):
         """Actualizar solo usuarios"""
-        logger.info("⚡ Actualizando usuarios...")
+        logger.info("Actualizando usuarios...")
         result = self.api_client.get_dashboard_stats()
 
         if result.get("success"):
@@ -717,7 +717,7 @@ class DashboardView(QWidget):
 
     def _quick_update_modulos(self):
         """Actualizar módulos y conteos"""
-        logger.info("⚡ Actualizando módulos...")
+        logger.info("Actualizando módulos...")
 
         # Actualizar número de módulos
         result = self.api_client.get_modulos(force_refresh=True)
@@ -830,7 +830,7 @@ class DashboardView(QWidget):
 
     def _quick_load(self):
         """Carga rápida"""
-        logger.info("⚡ Carga rápida del dashboard")
+        logger.info("Carga rápida del dashboard")
         self.loading_indicator.start_loading("Actualizando números...")
 
         result = self.api_client.get_dashboard_stats()
