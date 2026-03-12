@@ -2098,8 +2098,11 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-
-                    self._recargar_evaluacion_con_indicador()
+                    
+                    # Recalcular puntajes equitativamente
+                    self._recalcular_distribucion_puntos()
+                    
+                    # self._recargar_evaluacion_con_indicador() # Ya se recarga en _recalcular_distribucion_puntos
                 else:
                     QApplication.restoreOverrideCursor()
                     QMessageBox.critical(
@@ -2138,8 +2141,15 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-
-                    self._recargar_evaluacion_con_indicador()
+                    
+                    # Eliminar de la lista local para respuesta instantánea
+                    preguntas = self.evaluacion_actual.get("preguntas", [])
+                    self.evaluacion_actual["preguntas"] = [p for p in preguntas if p.get("id") != pregunta["id"]]
+                    
+                    # Recalcular puntajes equitativamente
+                    self._recalcular_distribucion_puntos()
+                    
+                    # self._recargar_evaluacion_con_indicador() # Ya se recarga en _recalcular_distribucion_puntos
                 else:
                     QApplication.restoreOverrideCursor()
                     QMessageBox.critical(
@@ -2148,6 +2158,55 @@ class ModuleDetailView(QWidget):
             except Exception as e:
                 QApplication.restoreOverrideCursor()
                 QMessageBox.critical(self, "Error inesperado", f"Error: {str(e)}")
+
+    def _recalcular_distribucion_puntos(self):
+        """Asigna un puntaje parejo 100/N a todas las preguntas de la evaluación basado en su configuración maestra"""
+        if not self.evaluacion_actual:
+            return
+            
+        preguntas = self.evaluacion_actual.get("preguntas", [])
+        if not preguntas:
+            self._recargar_evaluacion_con_indicador()
+            return
+            
+        # Calcular porcentaje exacto redondeado a 2 decimales
+        n_preguntas = self.evaluacion_actual.get("numero_preguntas", len(preguntas))
+        if n_preguntas <= 0:
+            n_preguntas = 1
+            
+        valor_equitativo = round(float(100.0) / float(n_preguntas), 2)
+        
+        modulo_id = self.modulo.get("id")
+        eval_id = self.evaluacion_actual.get("id")
+        
+        # Actualización local para respuesta instantánea
+        for pre in preguntas:
+            pre["puntos"] = valor_equitativo
+            
+        # Repinte instantáneo
+        self._recargar_evaluacion_con_indicador()
+        
+        # Sincronización en background
+        def _background_sync(preg_list, mod_id, ev_id, val_eq):
+            for p in preg_list:
+                p_data = {
+                    "pregunta": p.get("pregunta"),
+                    "tipo": p.get("tipo"),
+                    "estado": p.get("estado", "activo"),
+                    "puntos": val_eq
+                }
+                if "opciones" in p:
+                    p_data["opciones"] = p["opciones"]
+                self.api_client.update_pregunta(mod_id, ev_id, p.get("id"), p_data, silent=True)
+
+        import threading
+        hilo_sync = threading.Thread(
+            target=_background_sync, 
+            args=(list(preguntas), modulo_id, eval_id, valor_equitativo)
+        )
+        hilo_sync.daemon = True
+        hilo_sync.start()
+
 
     def _editar_pregunta(self, pregunta: dict) -> None:
         """
