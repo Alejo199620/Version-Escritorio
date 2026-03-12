@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
+    QApplication,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor
@@ -452,13 +453,28 @@ class LessonDialog(QDialog):
             "QPushButton { border-radius: 22px; padding: 0 40px; background-color: #4361ee; color: white; }" +
             "QPushButton:hover { background-color: #3f37c9; }"
         )
-        self.save_btn.clicked.connect(self.accept)
+        self.save_btn.clicked.connect(self._on_save_clicked)
         
         button_layout.addStretch()
         button_layout.addWidget(self.cancel_btn)
         button_layout.addWidget(self.save_btn)
         
         main_layout.addWidget(button_container)
+
+    def _on_save_clicked(self):
+        """Muestra indicador visual antes de guardar"""
+        data = self.get_data()
+        if data is None:
+            return
+            
+        self.save_btn.setText("⏳ Guardando...")
+        self.save_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(False)
+        self.setCursor(Qt.CursorShape.WaitCursor)
+        QApplication.processEvents()
+        
+        # Le damos un instante a la UI para repintarse antes de congelar en accept
+        QTimer.singleShot(50, self.accept)
 
     def on_ejercicios_changed(self, state):
         """Mostrar/ocultar sección de ejercicios"""

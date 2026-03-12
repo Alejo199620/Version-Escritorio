@@ -1057,7 +1057,7 @@ class ModuleDialog(QDialog):
             "QPushButton { border-radius: 22px; padding: 0 40px; background-color: #4361ee; color: white; }" +
             "QPushButton:hover { background-color: #3f37c9; }"
         )
-        self.save_btn.clicked.connect(self.accept)
+        self.save_btn.clicked.connect(self._on_save_clicked)
         
         button_layout.addStretch()
         button_layout.addWidget(self.cancel_btn)
@@ -1067,6 +1067,21 @@ class ModuleDialog(QDialog):
 
         self.ok_button = self.save_btn  # Para validación
         self._validar_campos()
+
+    def _on_save_clicked(self):
+        """Muestra indicador visual de guardado antes de aceptar"""
+        data = self.get_data()
+        if data is None:
+            return
+            
+        self.save_btn.setText("⏳ Guardando...")
+        self.save_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(False)
+        self.setCursor(Qt.CursorShape.WaitCursor)
+        QApplication.processEvents()
+        
+        # Diferir el accept para que se repinte la UI
+        QTimer.singleShot(50, self.accept)
 
     def _create_field_group(self, title: str) -> QFrame:
         """
@@ -2414,33 +2429,58 @@ class ModuleDetailView(QWidget):
             if data is None:
                 return
 
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            # Mostrar indicador de carga en el UI antes de bloquear
+            self.parent().parent().setCursor(Qt.CursorShape.WaitCursor)
+            
+            # Cambiar el título a Guardando... para dar feedback visual
+            old_title = self.modulo.get("titulo", "Módulo")
+            from PyQt6.QtWidgets import QLabel
+            for child in self.findChildren(QLabel):
+                if child.text() == old_title:
+                    child.setText("⏳ Guardando cambios...")
+                    break
+                    
+            QApplication.processEvents()
 
-            try:
-                # 1. Desplazamiento de orden si es necesario
-                nuevo_orden = data.get("orden_global")
-                self._desplazar_orden_modulos(nuevo_orden, self.modulo.get("id"))
+            # Diferir la llamada a la API para que el UI se actualice
+            QTimer.singleShot(50, lambda: self._do_actualizar_modulo(data, old_title))
 
-                # 2. Actualizar el módulo
-                result = self.api_client.update_modulo(self.modulo["id"], data)
+    def _do_actualizar_modulo(self, data: dict, old_title: str) -> None:
+        try:
+            # 1. Desplazamiento de orden si es necesario
+            nuevo_orden = data.get("orden_global")
+            self._desplazar_orden_modulos(nuevo_orden, self.modulo.get("id"))
 
-                if result["success"]:
-                    QApplication.restoreOverrideCursor()
+            # 2. Actualizar el módulo
+            result = self.api_client.update_modulo(self.modulo["id"], data)
 
-                    self.modulo.update(data)
-                    self.module_updated.emit()
+            if result["success"]:
+                self.parent().parent().setCursor(Qt.CursorShape.ArrowCursor)
 
-                    QTimer.singleShot(300, self._load_all_data)
-                else:
-                    QApplication.restoreOverrideCursor()
-                    QMessageBox.critical(
-                        self,
-                        "Error",
-                        f"Error al actualizar módulo: {result.get('error')}",
-                    )
-            except Exception as e:
-                QApplication.restoreOverrideCursor()
-                QMessageBox.critical(self, "Error inesperado", f"Error: {str(e)}")
+                self.modulo.update(data)
+                self.module_updated.emit()
+
+                # Actualizar sólo las vistas locales sin recargar todo agresivamente
+                QTimer.singleShot(100, self._load_all_data)
+            else:
+                self.parent().parent().setCursor(Qt.CursorShape.ArrowCursor)
+                # Restaurar título
+                for child in self.findChildren(QLabel):
+                    if child.text() == "⏳ Guardando cambios...":
+                        child.setText(old_title)
+                        break
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Error al actualizar módulo: {result.get('error')}",
+                )
+        except Exception as e:
+            self.parent().parent().setCursor(Qt.CursorShape.ArrowCursor)
+            for child in self.findChildren(QLabel):
+                if child.text() == "⏳ Guardando cambios...":
+                    child.setText(old_title)
+                    break
+            QMessageBox.critical(self, "Error inesperado", f"Error: {str(e)}")
 
     def _eliminar_modulo(self) -> None:
         """Elimina el módulo actual"""
@@ -3059,8 +3099,22 @@ class ModulesView(QWidget):
     def _on_module_updated(self) -> None:
         """Manejador cuando se actualiza un módulo"""
         self.api_client.invalidate_cache_type("modulos")
-        self._load_modulos(force_refresh=True)
-        QTimer.singleShot(100, self._delayed_module_selection)
+        
+        # En lugar de recargar toda la lista (que causa parpadeo), 
+        # actualizamos la lista actual en memoria si se puede,
+        # o hacemos un reload silencioso de fondo.
+        result = self.api_client.get_modulos(summary=True, force_refresh=True)
+        if result["success"]:
+            data = result.get("data", [])
+            nuevos_modulos = (
+                data if isinstance(data, list)
+                else data.get("data", []) if isinstance(data, dict) else []
+            )
+            self.modulos = nuevos_modulos
+            # Actualizamos de forma suave sin borrar la UI si es posible
+            self._mostrar_modulos(self.modulos)
+
+        QTimer.singleShot(50, self._delayed_module_selection)
 
     def _delayed_module_selection(self) -> None:
         """Selecciona el módulo después de un pequeño retraso"""
@@ -3072,7 +3126,10 @@ class ModulesView(QWidget):
                     break
 
             if modulo_actualizado:
-                self._mostrar_detalle_modulo(modulo_actualizado)
+                # Para evitar recargar todo el panel derecho, solo actualizamos los datos
+                self.modulo_actual.update(modulo_actualizado)
+                # No llamamos a _mostrar_detalle_modulo porque repintaría todo causando parpadeo,
+                # la vista de detalle ya se recargó a sí misma vía _load_all_data
             else:
                 self.modulo_actual = None
                 self._show_placeholder()
