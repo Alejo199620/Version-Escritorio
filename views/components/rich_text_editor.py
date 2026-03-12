@@ -630,6 +630,61 @@ _FONTCOMBO_STYLE = """
 """
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  QTEXT EDIT CON SANITIZACIÓN DE PASTE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import re as _re
+
+# Tamaños aproximados (pt) para cada nivel de heading según la escala típica
+_HEADING_SIZES = {1: 28, 2: 22, 3: 18, 4: 16, 5: 14, 6: 12}
+
+
+def _sanitize_html(html: str) -> str:
+    """
+    Convierte tags H1-H6 en <p> con font-size explícito.
+    Esto evita que Qt asigne headingLevel > 0 a los bloques,
+    lo que haría que Qt ignorara fontPointSize al renderizar.
+    """
+    def _replace_heading(m):
+        level = int(m.group(1))           # número del heading (1-6)
+        attrs = m.group(2) or ""          # atributos del tag de apertura
+        content = m.group(3)              # contenido interior
+        sz = _HEADING_SIZES.get(level, 14)
+        # Extraer style existente si hay
+        style_m = _re.search(r'style=["\']([^"\']*)["\']', attrs)
+        existing = style_m.group(1) if style_m else ""
+        # Agregar / sobreescribir font-size
+        existing = _re.sub(r'font-size\s*:[^;]+;?', '', existing)
+        new_style = f"font-size:{sz}pt; font-weight:bold; {existing}".strip()
+        return f'<p style="{new_style}">{content}</p>'
+
+    # Reemplazar <h1>...</h1> hasta <h6>...</h6> (case-insensitive, multi-line)
+    sanitized = _re.sub(
+        r'<h([1-6])(\s[^>]*)?>(.+?)</h\1>',
+        _replace_heading,
+        html,
+        flags=_re.IGNORECASE | _re.DOTALL,
+    )
+    return sanitized
+
+
+class SanitizedTextEdit(QTextEdit):
+    """
+    QTextEdit que sanitiza el HTML pegado: convierte H1-H6 en <p>
+    con font-size explícito para evitar el bug de headingLevel en Qt.
+    """
+
+    def insertFromMimeData(self, source):
+        if source.hasHtml():
+            clean = _sanitize_html(source.html())
+            self.insertHtml(clean)
+        else:
+            super().insertFromMimeData(source)
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EDITOR PRINCIPAL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -764,8 +819,8 @@ class RichTextEditor(QWidget):
         row.addStretch()
         return tb
 
-    def _build_editor(self) -> QTextEdit:
-        self.editor = QTextEdit()
+    def _build_editor(self) -> SanitizedTextEdit:
+        self.editor = SanitizedTextEdit()
         self.editor.setObjectName("rtEditor")
         self.editor.setStyleSheet("""
             #rtEditor {
@@ -977,7 +1032,6 @@ class RichTextEditor(QWidget):
 
             def modifier(fmt: QTextCharFormat):
                 fmt.setFontPointSize(sz)
-                fmt.setProperty(QTextFormat.Property.FontPixelSize, sz)
             
             self._apply_format_deeply(modifier)
             
@@ -989,55 +1043,71 @@ class RichTextEditor(QWidget):
     def _apply_format_deeply(self, modifier_func):
         """
         Aplica un cambio de formato de forma profunda a toda la selección,
-        iterando fragmento a fragmento para machacar estilos previos si es necesario.
+        iterando fragmento a fragmento para machacar estilos previos incluyendo
+        headings pegados desde Word.
         """
         cursor = self.editor.textCursor()
         if not cursor.hasSelection():
-            # Si no hay selección, aplicar al formato actual
+            # Sin selección: aplicar al formato actual del cursor
             fmt = self.editor.currentCharFormat()
             modifier_func(fmt)
             self.editor.setCurrentCharFormat(fmt)
             return
 
+        sel_start = cursor.selectionStart()
+        sel_end   = cursor.selectionEnd()
+
         cursor.beginEditBlock()
         try:
-            start = cursor.selectionStart()
-            end = cursor.selectionEnd()
-            
-            # Crear un cursor para iterar
-            it_cursor = QTextCursor(self.editor.document())
-            it_cursor.setPosition(start)
-            
-            while it_cursor.position() < end:
-                # Moverse al siguiente fragmento o final de la selección
-                it_cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
-                
-                # Obtener formato del fragmento actual
-                fmt = it_cursor.charFormat()
-                
-                # Aplicar modificaciones
-                modifier_func(fmt)
-                
-                # También resetear HeadingLevel si estamos cambiando tamaño
-                # (Qt visualizer ignora font size en headings)
-                block = it_cursor.block()
+            doc = self.editor.document()
+
+            # ── 1. Resetear headingLevel en todos los bloques afectados ──────
+            # Qt ignora fontPointSize cuando el bloque tiene headingLevel > 0,
+            # así que primero hay que aplanar los heading blocks.
+            block = doc.findBlock(sel_start)
+            while block.isValid() and block.position() <= sel_end:
                 bf = block.blockFormat()
                 if bf.headingLevel() > 0:
                     bf.setHeadingLevel(0)
                     bc = QTextCursor(block)
+                    bc.select(QTextCursor.SelectionType.BlockUnderCursor)
                     bc.setBlockFormat(bf)
+                block = block.next()
 
-                # Aplicar el formato modificado al fragmento
-                it_cursor.setCharFormat(fmt)
-                
-                # Colapsar cursor al final del fragmento procesado para la siguiente iteración
-                it_cursor.setPosition(it_cursor.position())
-                
-                # Si el cursor se quedó estancado o pasó el final, salir
-                if it_cursor.position() >= end:
-                    break
+            # ── 2. Iterar por fragmentos y aplicar el modificador ────────────
+            it = QTextCursor(doc)
+            it.setPosition(sel_start)
+
+            while it.position() < sel_end:
+                # Avanzar un carácter seleccionándolo
+                it.movePosition(
+                    QTextCursor.MoveOperation.NextCharacter,
+                    QTextCursor.MoveMode.KeepAnchor,
+                )
+                # Obtener formato del fragmento y modificarlo
+                fmt = it.charFormat()
+                modifier_func(fmt)
+                it.setCharFormat(fmt)
+                # Colapsar al final del fragmento para la siguiente iteración
+                it.setPosition(it.position())
+
         finally:
             cursor.endEditBlock()
+
+        # ── 3. Restaurar selección original y forzar repintado ───────────────
+        # Usamos QTimer.singleShot(0) para que el repintado ocurra en el
+        # siguiente ciclo del event loop, DESPUÉS de que Qt recalcule el
+        # layout del documento. Sin esto, repaint() dibuja el layout viejo.
+        cursor.setPosition(sel_start)
+        cursor.setPosition(sel_end, QTextCursor.MoveMode.KeepAnchor)
+        self.editor.setTextCursor(cursor)
+
+        def _force_repaint():
+            self.editor.document().markContentsDirty(sel_start, sel_end - sel_start)
+            self.editor.viewport().update()
+            self.editor.update()
+
+        QTimer.singleShot(0, _force_repaint)
 
     def toggle_bold(self):
         f = QTextCharFormat()
