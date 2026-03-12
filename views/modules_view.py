@@ -176,8 +176,13 @@ class ModernCard(QFrame):
         # --- DESCRIPCIÓN ---
         desc = self.modulo.get("descripcion_larga", "Sin descripción")
         if desc:
-            desc = re.sub("<[^<]+?>", "", desc)
-            palabras = desc.split()[:10]
+            # Mantener un resumen de texto plano pero de forma más eficiente
+            # Usamos un QLabel temporal para convertir HTML a texto plano de forma limpia
+            from PyQt6.QtGui import QTextDocument
+            doc = QTextDocument()
+            doc.setHtml(desc)
+            desc_plain = doc.toPlainText()
+            palabras = desc_plain.split()[:10]
             desc = " ".join(palabras) + ("..." if len(palabras) == 10 else "")
 
         desc_label = QLabel(desc)
@@ -1138,16 +1143,7 @@ class ModuleDialog(QDialog):
             )
             return None
 
-        # Usar HTML si tiene formato, si no usar texto plano
-        if (
-            descripcion_html
-            and descripcion_html != "<p></p>"
-            and descripcion_html != "<p><br></p>"
-            and "<p>" in descripcion_html
-        ):
-            descripcion = descripcion_html
-        else:
-            descripcion = descripcion_texto
+        descripcion = descripcion_html if descripcion_texto else ""
 
         return {
             "titulo": titulo,
@@ -1590,11 +1586,12 @@ class ModuleDetailView(QWidget):
         desc_title.setStyleSheet("color: #1e293b; margin-bottom: 10px;")
         desc_layout.addWidget(desc_title)
 
-        # Limpiar HTML para mostrar
+        # Mostrar HTML directamente para soportar formato
         desc_text = self.modulo.get("descripcion_larga", "Sin descripción")
-        desc_text = re.sub("<[^<]+?>", "", desc_text)
 
-        self.desc_label = QLabel(desc_text)
+        self.desc_label = QLabel()
+        self.desc_label.setTextFormat(Qt.TextFormat.RichText)
+        self.desc_label.setText(desc_text)
         self.desc_label.setWordWrap(True)
         self.desc_label.setStyleSheet(
             "color: #475569; line-height: 1.6; font-size: 13px;"
