@@ -1173,8 +1173,23 @@ class RichTextEditor(QWidget):
                 self.font_combo.setCurrentIndex(idx)
 
         sz = fmt.fontPointSize()
+        if sz <= 0:
+            # Si no hay pointSize, intentar desde el objeto QFont
+            f = fmt.font()
+            sz = f.pointSizeF()
+            if sz <= 0:
+                sz = f.pixelSize()
+        
+        # También verificar si hay una propiedad específica de tamaño (útil para texto pegado)
+        if sz <= 0:
+            if fmt.hasProperty(QTextFormat.Property.FontPointSize):
+                sz = fmt.property(QTextFormat.Property.FontPointSize)
+            elif fmt.hasProperty(QTextFormat.Property.FontPixelSize):
+                sz = fmt.property(QTextFormat.Property.FontPixelSize)
+
         if sz > 0:
             self.size_combo.setCurrentText(str(int(sz)))
+
 
         fg = fmt.foreground().color()
         if fg.isValid() and fg != self._current_color:
