@@ -2429,23 +2429,10 @@ class ModuleDetailView(QWidget):
             if data is None:
                 return
 
-            # Mostrar indicador de carga en el UI antes de bloquear
-            self.parent().parent().setCursor(Qt.CursorShape.WaitCursor)
-            
-            # Cambiar el título a Guardando... para dar feedback visual
-            old_title = self.modulo.get("titulo", "Módulo")
-            from PyQt6.QtWidgets import QLabel
-            for child in self.findChildren(QLabel):
-                if child.text() == old_title:
-                    child.setText("⏳ Guardando cambios...")
-                    break
-                    
-            QApplication.processEvents()
-
             # Diferir la llamada a la API para que el UI se actualice
-            QTimer.singleShot(50, lambda: self._do_actualizar_modulo(data, old_title))
+            self._do_actualizar_modulo(data)
 
-    def _do_actualizar_modulo(self, data: dict, old_title: str) -> None:
+    def _do_actualizar_modulo(self, data: dict) -> None:
         try:
             # 1. Desplazamiento de orden si es necesario
             nuevo_orden = data.get("orden_global")
@@ -2455,31 +2442,18 @@ class ModuleDetailView(QWidget):
             result = self.api_client.update_modulo(self.modulo["id"], data)
 
             if result["success"]:
-                self.parent().parent().setCursor(Qt.CursorShape.ArrowCursor)
-
                 self.modulo.update(data)
                 self.module_updated.emit()
 
                 # Actualizar sólo las vistas locales sin recargar todo agresivamente
                 QTimer.singleShot(100, self._load_all_data)
             else:
-                self.parent().parent().setCursor(Qt.CursorShape.ArrowCursor)
-                # Restaurar título
-                for child in self.findChildren(QLabel):
-                    if child.text() == "⏳ Guardando cambios...":
-                        child.setText(old_title)
-                        break
                 QMessageBox.critical(
                     self,
                     "Error",
                     f"Error al actualizar módulo: {result.get('error')}",
                 )
         except Exception as e:
-            self.parent().parent().setCursor(Qt.CursorShape.ArrowCursor)
-            for child in self.findChildren(QLabel):
-                if child.text() == "⏳ Guardando cambios...":
-                    child.setText(old_title)
-                    break
             QMessageBox.critical(self, "Error inesperado", f"Error: {str(e)}")
 
     def _eliminar_modulo(self) -> None:

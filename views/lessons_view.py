@@ -462,19 +462,12 @@ class LessonDialog(QDialog):
         main_layout.addWidget(button_container)
 
     def _on_save_clicked(self):
-        """Muestra indicador visual antes de guardar"""
+        """Cierra el diálogo y retorna los datos"""
         data = self.get_data()
         if data is None:
             return
             
-        self.save_btn.setText("⏳ Guardando...")
-        self.save_btn.setEnabled(False)
-        self.cancel_btn.setEnabled(False)
-        self.setCursor(Qt.CursorShape.WaitCursor)
-        QApplication.processEvents()
-        
-        # Le damos un instante a la UI para repintarse antes de congelar en accept
-        QTimer.singleShot(50, self.accept)
+        self.accept()
 
     def on_ejercicios_changed(self, state):
         """Mostrar/ocultar sección de ejercicios"""
