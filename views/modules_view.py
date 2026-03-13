@@ -2101,6 +2101,15 @@ class ModuleDetailView(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_data()
 
+            # Prevenir error 422 "The puntos field must be at least 0.5"
+            # Calculamos un valor inicial basado en el número de preguntas configurado
+            n_preguntas_config = self.evaluacion_actual.get("numero_preguntas", 10)
+            if n_preguntas_config <= 0:
+                n_preguntas_config = 1
+            
+            # Aseguramos que sea al menos 0.5
+            data["puntos"] = max(0.5, round(100.0 / float(n_preguntas_config), 2))
+
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
             try:
@@ -2111,10 +2120,11 @@ class ModuleDetailView(QWidget):
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
                     
-                    # Recalcular puntajes equitativamente
-                    self._recalcular_distribucion_puntos()
+                    # Forzar la carga síncrona para tener el nuevo listado de preguntas antes de recalcular
+                    self._load_evaluacion()
                     
-                    # self._recargar_evaluacion_con_indicador() # Ya se recarga en _recalcular_distribucion_puntos
+                    # Recalcular puntajes equitativamente sobre la lista ya actualizada
+                    self._recalcular_distribucion_puntos()
                 else:
                     QApplication.restoreOverrideCursor()
                     QMessageBox.critical(
@@ -2154,14 +2164,11 @@ class ModuleDetailView(QWidget):
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
                     
-                    # Eliminar de la lista local para respuesta instantánea
-                    preguntas = self.evaluacion_actual.get("preguntas", [])
-                    self.evaluacion_actual["preguntas"] = [p for p in preguntas if p.get("id") != pregunta["id"]]
+                    # Forzar recarga síncrona para limpiar la lista y IDs antes de recalcular
+                    self._load_evaluacion()
                     
                     # Recalcular puntajes equitativamente
                     self._recalcular_distribucion_puntos()
-                    
-                    # self._recargar_evaluacion_con_indicador() # Ya se recarga en _recalcular_distribucion_puntos
                 else:
                     QApplication.restoreOverrideCursor()
                     QMessageBox.critical(
@@ -2176,9 +2183,9 @@ class ModuleDetailView(QWidget):
         if not self.evaluacion_actual:
             return
             
+        # Recargar la lista de preguntas del objeto actual
         preguntas = self.evaluacion_actual.get("preguntas", [])
         if not preguntas:
-            self._recargar_evaluacion_con_indicador()
             return
             
         # Calcular porcentaje exacto redondeado a 2 decimales
@@ -2186,7 +2193,8 @@ class ModuleDetailView(QWidget):
         if n_preguntas <= 0:
             n_preguntas = 1
             
-        valor_equitativo = round(float(100.0) / float(n_preguntas), 2)
+        # El backend exige mínimo 0.5 por pregunta
+        valor_equitativo = max(0.5, round(100.0 / float(n_preguntas), 2))
         
         modulo_id = self.modulo.get("id")
         eval_id = self.evaluacion_actual.get("id")

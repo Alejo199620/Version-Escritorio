@@ -456,7 +456,9 @@ class ExerciseDialog(QDialog):
         }
 
         if self.is_evaluation:
-            data["puntos"] = 0 # Valor provisional, se recalculará en evaluations_view.py
+            # Por defecto asignamos 1.0 para evitar el error 422 (min 0.5) 
+            # El valor real será recalculado por las vistas (EvaluationsView/ModulesView)
+            data["puntos"] = 1.0
         elif self.orden_input:
             data["orden"] = self.orden_input.value()
 

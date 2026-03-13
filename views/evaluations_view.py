@@ -728,7 +728,9 @@ class EvaluationsView(QWidget):
             n_preguntas_config = self.evaluacion_actual.get("numero_preguntas", len(self.preguntas) + 1)
             if n_preguntas_config <= 0:
                 n_preguntas_config = 1
-            data["puntos"] = round(100.0 / float(n_preguntas_config), 2)
+            
+            # Aseguramos que sea al menos 0.5
+            data["puntos"] = max(0.5, round(100.0 / float(n_preguntas_config), 2))
 
             result = self.api_client.create_pregunta(
                 self.modulo_actual.get("id"), self.evaluacion_actual.get("id"), data, silent=True
@@ -806,7 +808,8 @@ class EvaluationsView(QWidget):
         if n_preguntas <= 0:
             n_preguntas = 1
             
-        valor_equitativo = round(float(100.0) / float(n_preguntas), 2)
+        # El backend exige mínimo 0.5 por pregunta
+        valor_equitativo = max(0.5, round(float(100.0) / float(n_preguntas), 2))
         
         modulo_id = self.modulo_actual.get("id")
         eval_id = self.evaluacion_actual.get("id")
