@@ -623,9 +623,10 @@ class EvaluationsView(QWidget):
             self.table.setItem(row, 2, tipo_item)
 
             # Puntos
-            self.table.setItem(
-                row, 3, QTableWidgetItem(str(pregunta.get("puntos", "")))
-            )
+            puntos_val = pregunta.get("puntos", 0)
+            puntos_item = QTableWidgetItem(f"{float(puntos_val):.2f}")
+            puntos_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(row, 3, puntos_item)
 
             # Acciones
             acciones = QWidget()
@@ -703,6 +704,8 @@ class EvaluationsView(QWidget):
 
             if result["success"]:
                 self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
+                # Recalcular puntos inmediatamente si el número de preguntas cambió
+                self._recalcular_distribucion_puntos()
             else:
                 QMessageBox.critical(self, "Error", f"Error: {result.get('error')}")
 
@@ -803,10 +806,8 @@ class EvaluationsView(QWidget):
         if not self.preguntas or not self.evaluacion_actual:
             return
             
-        # Calcular porcentaje exacto redondeado a 2 decimales usando float dividido el n configurado en Config, no en las cargadas!
-        n_preguntas = self.evaluacion_actual.get("numero_preguntas", len(self.preguntas))
-        if n_preguntas <= 0:
-            n_preguntas = 1
+        # Calcular puntos: siempre 100 / cantidad_preguntas_actuales para que sume 100 parejo
+        n_preguntas = len(self.preguntas)
             
         # El backend exige mínimo 0.5 por pregunta
         valor_equitativo = max(0.5, round(float(100.0) / float(n_preguntas), 2))

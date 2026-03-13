@@ -667,7 +667,15 @@ class QuestionItemWidget(QWidget):
     def __init__(self, pregunta: dict, parent=None):
         super().__init__(parent)
         self.pregunta = pregunta
+        self.puntos_label = None  # Referencia para actualización en tiempo real
         self._setup_ui()
+
+    def update_puntos(self, nuevos_puntos):
+        """Actualiza el label de puntos en tiempo real sin redibujar todo el widget"""
+        self.pregunta["puntos"] = nuevos_puntos
+        if self.puntos_label:
+            # Forzar formato de 2 decimales para consistencia visual
+            self.puntos_label.setText(f"{nuevos_puntos:.2f} puntos")
 
     def _setup_ui(self) -> None:
         """Configura la interfaz de usuario del item de pregunta"""
@@ -740,6 +748,7 @@ class QuestionItemWidget(QWidget):
         puntos_label = QLabel(f"{self.pregunta.get('puntos', 0)} puntos")
         puntos_label.setStyleSheet("color: #f8961e; font-size: 11px; font-weight: 500;")
         meta_layout.addWidget(puntos_label)
+        self.puntos_label = puntos_label
 
         opciones = self.pregunta.get("opciones", [])
         if opciones:
@@ -1757,34 +1766,10 @@ class ModuleDetailView(QWidget):
     # ============================================================================
 
     def _recargar_evaluacion_con_indicador(self) -> None:
-        """Recarga la evaluación mostrando un indicador visual"""
-        if getattr(self, "loading_eval_label", None) is not None:
-            try:
-                self.loading_eval_label.deleteLater()
-            except:
-                pass
-
-        self.loading_eval_label = QLabel("Cargando evaluación...")
-        self.loading_eval_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.loading_eval_label.setStyleSheet(
-            """
-            QLabel {
-                color: #4361ee;
-                padding: 60px;
-                font-size: 16px;
-                font-weight: bold;
-                background-color: white;
-                border-radius: 16px;
-                border: 2px dashed #4361ee;
-            }
-        """
-        )
-
-        self._clear_layout(self.eval_container_layout)
-        self.eval_container_layout.addWidget(self.loading_eval_label)
-        QApplication.processEvents()
-
-        QTimer.singleShot(300, self._do_load_evaluacion)
+        """Recarga la evaluación sin spinners intrusivos si ya hay contenido cargado"""
+        # Si ya estamos visualizando preguntas, recargamos directamente de forma síncrona
+        # para que se sienta instantáneo (Match EvaluationsView behavior)
+        self._load_evaluacion()
 
     def _do_load_evaluacion(self) -> None:
         """Carga la evaluación forzando refresco"""
@@ -1933,6 +1918,8 @@ class ModuleDetailView(QWidget):
             self.loading_eval_label = None
 
         self._clear_layout(self.eval_container_layout)
+        self.question_ui_items = {}  
+        self.question_widgets = []    # Lista de seguimiento de widgets para actualización robusta
 
         result = self.api_client.get_evaluacion(self.modulo["id"], force_refresh=True)
 
@@ -1969,18 +1956,23 @@ class ModuleDetailView(QWidget):
             # Preguntas existentes
             preguntas = eval_data.get("preguntas", [])
             if preguntas:
-                preguntas_title = QLabel(f"Preguntas ({len(preguntas)})")
-                preguntas_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-                preguntas_title.setStyleSheet(
+                self.preguntas_title_label = QLabel(f"Preguntas ({len(preguntas)})")
+                self.preguntas_title_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+                self.preguntas_title_label.setStyleSheet(
                     "color: #1e293b; margin-top: 20px; margin-bottom: 10px;"
                 )
-                self.eval_container_layout.addWidget(preguntas_title)
+                self.eval_container_layout.addWidget(self.preguntas_title_label)
 
                 for pregunta in preguntas:
                     item = QuestionItemWidget(pregunta)
                     item.edit_clicked.connect(self._editar_pregunta)
                     item.delete_clicked.connect(self._eliminar_pregunta)
                     self.eval_container_layout.addWidget(item)
+                    self.question_widgets.append(item) # Agregar al seguimiento directo
+                    
+                    # Guardar referencia por ID para actualizaciones rápidas
+                    if "id" in pregunta:
+                        self.question_ui_items[pregunta["id"]] = item
             else:
                 no_preguntas_label = QLabel("No hay preguntas creadas aún")
                 no_preguntas_label.setStyleSheet(
@@ -2120,10 +2112,10 @@ class ModuleDetailView(QWidget):
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
                     
-                    # Forzar la carga síncrona para tener el nuevo listado de preguntas antes de recalcular
+                    # Forzar la carga síncrona sin indicador molesto
                     self._load_evaluacion()
                     
-                    # Recalcular puntajes equitativamente sobre la lista ya actualizada
+                    # Recalcular puntajes equitativamente sobre la lista ya actualizada e instantánea
                     self._recalcular_distribucion_puntos()
                 else:
                     QApplication.restoreOverrideCursor()
@@ -2188,10 +2180,8 @@ class ModuleDetailView(QWidget):
         if not preguntas:
             return
             
-        # Calcular porcentaje exacto redondeado a 2 decimales
-        n_preguntas = self.evaluacion_actual.get("numero_preguntas", len(preguntas))
-        if n_preguntas <= 0:
-            n_preguntas = 1
+        # Calcular puntos: siempre 100 / cantidad_preguntas_actuales para que sume 100 parejo
+        n_preguntas = len(preguntas)
             
         # El backend exige mínimo 0.5 por pregunta
         valor_equitativo = max(0.5, round(100.0 / float(n_preguntas), 2))
@@ -2203,8 +2193,21 @@ class ModuleDetailView(QWidget):
         for pre in preguntas:
             pre["puntos"] = valor_equitativo
             
-        # Repinte instantáneo
-        self._recargar_evaluacion_con_indicador()
+        # Actualizar directamente todos los widgets rastreados
+        if hasattr(self, "question_widgets"):
+            for widget in self.question_widgets:
+                try:
+                    widget.update_puntos(valor_equitativo)
+                except Exception as e:
+                    logger.error(f"Error al actualizar puntos en widget: {e}")
+        
+        # Actualizar título si existe
+        if hasattr(self, "preguntas_title_label") and self.preguntas_title_label:
+            self.preguntas_title_label.setText(f"Preguntas ({n_preguntas})")
+            
+        # Repinte instantáneo de la tarjeta de configuración si es necesario
+        # (Omitimos el indicador de carga para que se sienta fluido)
+        # self._recargar_evaluacion_con_indicador() # ELIMINADO para fluidez
         
         # Sincronización en background
         def _background_sync(preg_list, mod_id, ev_id, val_eq):
@@ -2254,8 +2257,12 @@ class ModuleDetailView(QWidget):
 
                 if result["success"]:
                     QApplication.restoreOverrideCursor()
-
-                    self._recargar_evaluacion_con_indicador()
+                    
+                    # Carga rápida sin indicadores parpadeantes
+                    self._load_evaluacion()
+                    
+                    # Asegurar que se redistribuyan los puntos tras editar
+                    self._recalcular_distribucion_puntos()
                 else:
                     QApplication.restoreOverrideCursor()
                     QMessageBox.critical(
@@ -2285,7 +2292,12 @@ class ModuleDetailView(QWidget):
 
             if result["success"]:
                 QApplication.restoreOverrideCursor()
-                self._recargar_evaluacion_con_indicador()
+                
+                # Carga síncrona rápida
+                self._load_evaluacion()
+                
+                # Recalcular por si acaso cambió el número de preguntas o algo similar
+                self._recalcular_distribucion_puntos()
             else:
                 QApplication.restoreOverrideCursor()
                 QMessageBox.critical(
