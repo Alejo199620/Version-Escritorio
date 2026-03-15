@@ -109,6 +109,7 @@ class APIClient(QObject):
     lecciones_changed = pyqtSignal()
     ejercicios_changed = pyqtSignal()
     evaluaciones_changed = pyqtSignal()
+    categorias_changed = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -169,6 +170,11 @@ class APIClient(QObject):
                 "enabled": True,
                 "preload": False,
             },  # 5 minutos
+            "categorias": {
+                "timeout": 600,
+                "enabled": True,
+                "preload": True,
+            },  # 10 minutos
         }
 
         # Caché en disco (solo para datos estáticos)
@@ -253,6 +259,8 @@ class APIClient(QObject):
             self.ejercicios_changed.emit()
         elif data_type == "evaluaciones":
             self.evaluaciones_changed.emit()
+        elif data_type == "categorias":
+            self.categorias_changed.emit()
 
         # Callbacks
         if data_type in self.observers:
@@ -523,6 +531,8 @@ class APIClient(QObject):
             self.invalidate_cache_type("evaluaciones")
         elif "dashboard" in endpoint_lower:
             self.invalidate_cache_type("dashboard")
+        elif "categoria" in endpoint_lower:
+            self.invalidate_cache_type("categorias")
 
     # ============= AUTENTICACIÓN =============
     def set_token(self, token: str, refresh_token: Optional[str] = None):
@@ -1066,3 +1076,19 @@ class APIClient(QObject):
             json={"opciones": opciones},
             invalidate_cache=["evaluaciones"],
         )
+    # ============= CATEGORÍAS DE MÓDULOS =============
+    def get_categorias(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Obtener todas las categorías de módulos"""
+        return self.get("/admin/categorias-modulos", cache_type="categorias", force_refresh=force_refresh)
+
+    def create_categoria(self, data: Dict) -> Dict[str, Any]:
+        """Crear una nueva categoría"""
+        return self.post("/admin/categorias-modulos", json=data, invalidate_cache=["categorias"])
+
+    def update_categoria(self, categoria_id: int, data: Dict) -> Dict[str, Any]:
+        """Actualizar una categoría existente"""
+        return self.put(f"/admin/categorias-modulos/{categoria_id}", json=data, invalidate_cache=["categorias"])
+
+    def delete_categoria(self, categoria_id: int) -> Dict[str, Any]:
+        """Eliminar una categoría"""
+        return self.delete(f"/admin/categorias-modulos/{categoria_id}", invalidate_cache=["categorias"])

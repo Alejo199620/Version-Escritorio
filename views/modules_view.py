@@ -57,6 +57,7 @@ from PyQt6.QtGui import (
 )
 import logging
 import re
+import unicodedata
 from utils.paths import resource_path
 from views.lessons_view import LessonDialog
 from views.exercises_view import ExerciseDialog
@@ -857,8 +858,13 @@ class ModuleDialog(QDialog):
             | Qt.WindowType.WindowCloseButtonHint
         )
 
-        # Cargar módulos existentes para calcular orden siguiente
+        # Cargar categorías y módulos existentes
+        QTimer.singleShot(0, self._cargar_categorias)
         QTimer.singleShot(0, self._cargar_modulos_existentes)
+        
+        # Conectar señales para actualización dinámica
+        self.api_client.categorias_changed.connect(self._cargar_categorias)
+
         self._setup_ui()
 
         if modulo_data:
@@ -876,6 +882,37 @@ class ModuleDialog(QDialog):
             )
             if not self.modulo_data:
                 self.orden_spin.setValue(self._obtener_siguiente_orden())
+
+    def _cargar_categorias(self) -> None:
+        """Carga las categorías desde la API"""
+        try:
+            result = self.api_client.get_categorias(force_refresh=True)
+            if result["success"]:
+                self.categorias = result.get("data", [])
+                self.tipo_combo.clear()
+                for cat in self.categorias:
+                    self.tipo_combo.addItem(cat.get("nombre", ""), cat.get("slug", ""))
+                
+                # Re-seleccionar si es edición
+                if self.modulo_data:
+                    slug = self.modulo_data.get("modulo", "")
+                    index = self.tipo_combo.findData(slug)
+                    if index >= 0:
+                        self.tipo_combo.setCurrentIndex(index)
+        except Exception as e:
+            logger.error(f"Error cargando categorías: {e}")
+            # Fallback con slugs para que findData funcione
+            fallback = [
+                ("Introducción", "introduccion"),
+                ("HTML", "html"),
+                ("CSS", "css"),
+                ("JavaScript", "javascript"),
+                ("PHP", "php"),
+                ("SQL", "sql")
+            ]
+            self.tipo_combo.clear()
+            for nombre, slug in fallback:
+                self.tipo_combo.addItem(nombre, slug)
 
     def _setup_ui(self) -> None:
         """Configura la interfaz de usuario del diálogo"""
@@ -986,9 +1023,7 @@ class ModuleDialog(QDialog):
 
         # Campo: Tipo
         self.tipo_combo = QComboBox()
-        self.tipo_combo.addItems(
-            ["html", "css", "javascript", "php", "sql", "introduccion"]
-        )
+        # Se cargan dinámicamente en _cargar_categorias
         form_layout.addRow("Tipo:", self.tipo_combo)
 
         layout.addWidget(form_widget)
@@ -1133,9 +1168,15 @@ class ModuleDialog(QDialog):
         """Carga los datos del módulo existente en el formulario"""
         self.titulo_input.setText(self.modulo_data.get("titulo", ""))
 
-        index = self.tipo_combo.findText(self.modulo_data.get("modulo", "html"))
+        slug = self.modulo_data.get("modulo", "html")
+        index = self.tipo_combo.findData(slug)
         if index >= 0:
             self.tipo_combo.setCurrentIndex(index)
+        elif self.tipo_combo.count() > 0:
+            # Fallback a texto si no encuentra por data
+            index = self.tipo_combo.findText(slug)
+            if index >= 0:
+                self.tipo_combo.setCurrentIndex(index)
 
         descripcion = self.modulo_data.get("descripcion_larga", "")
         self.descripcion_editor.setHtml(descripcion)
@@ -1171,7 +1212,7 @@ class ModuleDialog(QDialog):
 
         return {
             "titulo": titulo,
-            "modulo": self.tipo_combo.currentText(),
+            "modulo": self.tipo_combo.currentData() or self.tipo_combo.currentText(),
             "descripcion_larga": descripcion,
             "orden_global": self.orden_spin.value(),
             "estado": self.estado_combo.currentText(),
@@ -1183,6 +1224,183 @@ class ModuleDialog(QDialog):
         if data is None:
             return
         super().accept()
+
+# ============================================================================
+# DIÁLOGO: GESTIÓN DE CATEGORÍAS
+# ============================================================================
+
+class CategoryManagementDialog(QDialog):
+    """
+    Diálogo para gestionar las categorías de módulos (CRUD dinámico).
+    """
+    def __init__(self, api_client, parent=None):
+        super().__init__(parent)
+        self.api_client = api_client
+        self.setWindowTitle("Gestionar Categorías")
+        self.setMinimumSize(600, 500)
+        self._setup_ui()
+        self._load_categorias()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        title = QLabel("Categorías de Módulos")
+        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        layout.addWidget(title)
+
+        # Formulario para nueva categoría
+        form_group = QGroupBox("Nueva Categoría / Editar")
+        form_layout = QGridLayout(form_group)
+        
+        self.nombre_input = QLineEdit()
+        self.nombre_input.setPlaceholderText("Nombre (ej: Python)")
+        self.nombre_input.textChanged.connect(self._auto_slug)
+        
+        self.slug_input = QLineEdit()
+        self.slug_input.setPlaceholderText("Slug (ej: python)")
+        self.slug_input.setToolTip("Se genera automáticamente desde el nombre")
+        
+        form_layout.addWidget(QLabel("Nombre:"), 0, 0)
+        form_layout.addWidget(self.nombre_input, 0, 1)
+        form_layout.addWidget(QLabel("Slug:"), 1, 0)
+        form_layout.addWidget(self.slug_input, 1, 1)
+        
+        self.save_btn = QPushButton("Guardar")
+        self.save_btn.setStyleSheet(StyleHelper.button_primary())
+        self.save_btn.clicked.connect(self._on_save_clicked)
+        form_layout.addWidget(self.save_btn, 2, 1)
+        
+        self.cancel_edit_btn = QPushButton("Cancelar Edición")
+        self.cancel_edit_btn.setVisible(False)
+        self.cancel_edit_btn.clicked.connect(self._reset_form)
+        form_layout.addWidget(self.cancel_edit_btn, 2, 0)
+        
+        layout.addWidget(form_group)
+
+        # Tabla de categorías
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Nombre", "Slug", "Módulos", "Acciones"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.itemDoubleClicked.connect(self._on_item_double_clicked)
+        layout.addWidget(self.table)
+        
+        self.editing_id = None
+
+    def _load_categorias(self):
+        result = self.api_client.get_categorias(force_refresh=True)
+        if result["success"]:
+            categorias = result.get("data", [])
+            self.table.setRowCount(len(categorias))
+            for i, cat in enumerate(categorias):
+                self.table.setItem(i, 0, QTableWidgetItem(cat.get("nombre", "")))
+                self.table.setItem(i, 1, QTableWidgetItem(cat.get("slug", "")))
+                self.table.setItem(i, 2, QTableWidgetItem(str(cat.get("modulos_count", 0))))
+                
+                actions = QWidget()
+                act_layout = QHBoxLayout(actions)
+                act_layout.setContentsMargins(0,0,0,0)
+                
+                edit_btn = QPushButton("✏️")
+                edit_btn.setToolTip("Editar")
+                edit_btn.clicked.connect(lambda _, c=cat: self._edit_categoria(c))
+                
+                del_btn = QPushButton("🗑️")
+                count = cat.get("modulos_count", 0)
+                if count > 0:
+                    del_btn.setEnabled(False)
+                    del_btn.setToolTip(f"No se puede eliminar: tiene {count} módulos")
+                    del_btn.setAlpha = 0.5 # Efecto visual simple
+                else:
+                    del_btn.setToolTip("Eliminar")
+                
+                del_btn.clicked.connect(lambda _, c=cat: self._delete_categoria(c))
+                
+                act_layout.addWidget(edit_btn)
+                act_layout.addWidget(del_btn)
+                self.table.setCellWidget(i, 3, actions)
+
+    def _on_save_clicked(self):
+        nombre = self.nombre_input.text().strip()
+        slug = self.slug_input.text().strip()
+        
+        if not nombre or not slug:
+            QMessageBox.warning(self, "Error", "Nombre y Slug son obligatorios")
+            return
+            
+        data = {"nombre": nombre, "slug": slug}
+        
+        try:
+            if self.editing_id:
+                result = self.api_client.update_categoria(self.editing_id, data)
+            else:
+                result = self.api_client.create_categoria(data)
+                
+            if result["success"]:
+                self._reset_form()
+                self._load_categorias()
+            else:
+                QMessageBox.critical(self, "Error", result.get("error", "Error desconocido"))
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error inesperado: {e}")
+
+    def _edit_categoria(self, cat):
+        self.editing_id = cat.get("id")
+        self.nombre_input.setText(cat.get("nombre", ""))
+        self.slug_input.setText(cat.get("slug", ""))
+        self.save_btn.setText("Actualizar")
+        self.cancel_edit_btn.setVisible(True)
+
+    def _delete_categoria(self, cat):
+        reply = QMessageBox.question(self, "Confirmar Elminación", 
+                                   f"¿Eliminar categoría '{cat.get('nombre')}'?\nSolo se puede eliminar si no tiene módulos asociados.")
+        if reply == QMessageBox.StandardButton.Yes:
+            result = self.api_client.delete_categoria(cat.get("id"))
+            if result["success"]:
+                self._load_categorias()
+            else:
+                QMessageBox.critical(self, "Error", result.get("error", "Error desconocido"))
+
+    def _reset_form(self):
+        self.editing_id = None
+        # Desconectar temporalmente para evitar que el clear limpie el slug si no queremos
+        self.nombre_input.blockSignals(True)
+        self.nombre_input.clear()
+        self.nombre_input.blockSignals(False)
+        self.slug_input.clear()
+        self.save_btn.setText("Guardar")
+        self.cancel_edit_btn.setVisible(False)
+
+    def _auto_slug(self, text):
+        """Genera un slug automáticamente desde el nombre"""
+        if self.editing_id:
+            return # No auto-slug si estamos editando uno existente
+            
+        # Normalizar y quitar acentos
+        slug = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+        # Minúsculas y quitar caracteres no alfanuméricos
+        slug = re.sub(r'[^a-zA-Z0-9\s-]', '', slug).lower()
+        # Reemplazar espacios por guiones y quitar duplicados
+        slug = re.sub(r'[\s-]+', '-', slug).strip('-')
+        
+        self.slug_input.setText(slug)
+
+    def _on_item_double_clicked(self, item):
+        """Selecciona la fila para editar al hacer doble clic"""
+        row = item.row()
+        # Obtener los datos de la fila (podríamos guardar el dict original pero esto es más directo)
+        # O mejor, recargar desde el ID si tuviéramos una lista guardada
+        # Vamos a buscar en los metadatos de la fila si los hubiéramos guardado
+        # Como no los guardamos, vamos a buscar por slug en la lista cargada
+        slug = self.table.item(row, 1).text()
+        
+        result = self.api_client.get_categorias()
+        if result["success"]:
+            for cat in result.get("data", []):
+                if cat.get("slug") == slug:
+                    self._edit_categoria(cat)
+                    break
 
 
 # ============================================================================
@@ -2730,6 +2948,15 @@ class ModulesView(QWidget):
         refresh_btn.clicked.connect(self._refrescar_modulos)
         header_layout.addWidget(refresh_btn)
 
+        # Botón gestionar categorías
+        self.cat_btn = QPushButton("Categorías")
+        self.cat_btn.setFixedHeight(45)
+        self.cat_btn.setStyleSheet(
+            StyleHelper.button_secondary() + "padding: 0 20px; font-size: 14px; margin-right: 10px;"
+        )
+        self.cat_btn.clicked.connect(self._gestionar_categorias)
+        header_layout.addWidget(self.cat_btn)
+
         # Botón nuevo módulo
         self.new_btn = QPushButton("➕ Nuevo Módulo")
         self.new_btn.setFixedHeight(45)
@@ -3166,17 +3393,16 @@ class ModulesView(QWidget):
                         self._mostrar_detalle_modulo(nuevo_modulo)
                     else:
                         self._show_placeholder()
-                else:
-                    QApplication.restoreOverrideCursor()
-                    error_msg = result.get("error", "Error desconocido")
-                    if "errors" in result:
-                        error_msg += "\n" + "\n".join(result["errors"])
-                    QMessageBox.critical(
-                        self, "Error", f"Error al crear módulo:\n{error_msg}"
-                    )
             except Exception as e:
                 QApplication.restoreOverrideCursor()
                 QMessageBox.critical(self, "Error inesperado", f"Error:\n{str(e)}")
+
+    def _gestionar_categorias(self) -> None:
+        """Abre el diálogo de gestión de categorías"""
+        dialog = CategoryManagementDialog(self.api_client, self)
+        dialog.exec()
+        # Invalida cache y recarga por si acaso
+        self.api_client.invalidate_cache_type("categorias")
 
     def _desplazar_orden_modulos(self, orden_objetivo: int, modulo_id_ignorar: int = None) -> None:
         """Reutiliza la lógica de desplazamiento en la vista principal"""
