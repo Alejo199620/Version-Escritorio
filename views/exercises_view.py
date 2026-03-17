@@ -175,11 +175,11 @@ class OpcionDialog(QDialog):
 
         if self.tipo == "arrastrar_soltar":
             data["pareja_arrastre"] = self.pareja_input.text()
-            data["es_correcta"] = True  # En arrastrar, todos los pares son correctos
+            data["es_correcta"] = 1  # 1 en lugar de True
         elif self.tipo == "seleccion_multiple":
-            data["es_correcta"] = self.correcta_check.isChecked()
+            data["es_correcta"] = 1 if self.correcta_check.isChecked() else 0
         else:
-            data["es_correcta"] = False
+            data["es_correcta"] = 0
 
         return data
 
@@ -313,7 +313,7 @@ class ExerciseDialog(QDialog):
         self.pregunta_input.setMaximumHeight(100)
         layout.addWidget(self.pregunta_input)
 
-        # Opciones
+        # Opciones Estándar (Multiple Choice / Drag & Drop)
         self.opciones_group = QGroupBox("Opciones / Respuestas")
         self.opciones_layout = QVBoxLayout()
 
@@ -322,7 +322,9 @@ class ExerciseDialog(QDialog):
         self.instrucciones_label.setStyleSheet("color: #666; font-style: italic;")
         self.opciones_layout.addWidget(self.instrucciones_label)
 
-        btn_layout = QHBoxLayout()
+        self.edit_opciones_container = QWidget()
+        btn_layout = QHBoxLayout(self.edit_opciones_container)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
         self.add_opcion_btn = QPushButton("➕ Agregar Opción")
         self.add_opcion_btn.clicked.connect(self.agregar_opcion)
         btn_layout.addWidget(self.add_opcion_btn)
@@ -331,13 +333,30 @@ class ExerciseDialog(QDialog):
         self.remove_opcion_btn.clicked.connect(self.eliminar_opcion)
         btn_layout.addWidget(self.remove_opcion_btn)
         btn_layout.addStretch()
-        self.opciones_layout.addLayout(btn_layout)
+        self.opciones_layout.addWidget(self.edit_opciones_container)
 
         self.opciones_list = QListWidget()
         self.opciones_layout.addWidget(self.opciones_list)
 
         self.opciones_group.setLayout(self.opciones_layout)
         layout.addWidget(self.opciones_group)
+
+        # Opciones Verdadero / Falso (Radio Buttons)
+        self.vf_group = QGroupBox("Seleccione la Respuesta Correcta")
+        vf_layout = QVBoxLayout()
+        vf_layout.setSpacing(15)
+        vf_layout.setContentsMargins(20, 20, 20, 20)
+
+        self.vf_radio_v = QRadioButton("✓ Verdadero")
+        self.vf_radio_v.setStyleSheet("font-weight: bold; color: #059669; font-size: 16px;")
+        
+        self.vf_radio_f = QRadioButton("✗ Falso")
+        self.vf_radio_f.setStyleSheet("font-weight: bold; color: #dc2626; font-size: 16px;")
+
+        vf_layout.addWidget(self.vf_radio_v)
+        vf_layout.addWidget(self.vf_radio_f)
+        self.vf_group.setLayout(vf_layout)
+        layout.addWidget(self.vf_group)
 
         # Footer
         footer = QHBoxLayout()
@@ -363,36 +382,23 @@ class ExerciseDialog(QDialog):
             self.instrucciones_label.setText(
                 "Crea pares de (Término → Definición). El usuario deberá emparejarlos."
             )
+            self.opciones_group.show()
+            self.vf_group.hide()
             self.add_opcion_btn.setEnabled(True)
-            self.opciones_list.clear()
         elif tipo == "verdadero_falso":
             self.instrucciones_label.setText(
-                "Selecciona la respuesta correcta (Verdadero o Falso)."
+                "Indique si el enunciado anterior es Verdadero o Falso."
             )
-            self.add_opcion_btn.setEnabled(False)
-            self.opciones_list.clear()
-            self._add_default_vf_options()
+            self.opciones_group.hide()
+            self.vf_group.show()
         else:
             self.instrucciones_label.setText(
                 "Añade opciones y marca la(s) correcta(s) usando el checkbox del diálogo."
             )
+            self.opciones_group.show()
+            self.vf_group.hide()
             self.add_opcion_btn.setEnabled(True)
 
-    def _add_default_vf_options(self):
-        v = QListWidgetItem("✓ Verdadero")
-        v.setData(
-            Qt.ItemDataRole.UserRole,
-            {"texto": "Verdadero", "es_correcta": True, "orden": 1},
-        )
-        v.setForeground(QColor("#059669"))
-        self.opciones_list.addItem(v)
-        f = QListWidgetItem("✗ Falso")
-        f.setData(
-            Qt.ItemDataRole.UserRole,
-            {"texto": "Falso", "es_correcta": False, "orden": 2},
-        )
-        f.setForeground(QColor("#dc2626"))
-        self.opciones_list.addItem(f)
 
     def agregar_opcion(self):
         dialog = OpcionDialog(self.tipo_combo.currentText(), self)
@@ -427,33 +433,65 @@ class ExerciseDialog(QDialog):
             self.orden_input.setValue(int(data.get("orden", 1)))
 
         self.opciones_list.clear()
-        for opt in data.get("opciones", []):
-            text = opt.get("texto", "")
-            if data.get("tipo") == "arrastrar_soltar":
-                text = f"{text} → {opt.get('pareja_arrastre', '')}"
+        tipo = data.get("tipo", "")
+        
+        if tipo == "verdadero_falso":
+            for opt in data.get("opciones", []):
+                es_v = str(opt.get("texto", "")).lower() == "verdadero"
+                if es_v and opt.get("es_correcta"):
+                    self.vf_radio_v.setChecked(True)
+                elif not es_v and opt.get("es_correcta"):
+                    self.vf_radio_f.setChecked(True)
+        else:
+            for opt in data.get("opciones", []):
+                text = opt.get("texto", "")
+                if tipo == "arrastrar_soltar":
+                    text = f"{text} → {opt.get('pareja_arrastre', '')}"
 
-            item = QListWidgetItem(text)
-            if opt.get("es_correcta"):
-                item.setText(f"✅ {text}")
-                item.setForeground(QColor("#27ae60"))
-            item.setData(Qt.ItemDataRole.UserRole, opt)
-            self.opciones_list.addItem(item)
+                item = QListWidgetItem(text)
+                if opt.get("es_correcta"):
+                    item.setText(f"✅ {text}")
+                    item.setForeground(QColor("#27ae60"))
+                item.setData(Qt.ItemDataRole.UserRole, opt)
+                self.opciones_list.addItem(item)
 
     def get_data(self):
         opciones = []
-        for i in range(self.opciones_list.count()):
-            item = self.opciones_list.item(i)
-            opt_data = item.data(Qt.ItemDataRole.UserRole)
-            if opt_data:
-                opt_data["orden"] = i + 1
-                opciones.append(opt_data)
+        tipo = self.tipo_combo.currentText()
+        res_correcta = None
+
+        if tipo == "verdadero_falso":
+            es_v_correcta = 1 if self.vf_radio_v.isChecked() else 0
+            res_correcta = "verdadero" if self.vf_radio_v.isChecked() else "falso"
+            opciones = [
+                {
+                    "texto": "Verdadero",
+                    "es_correcta": es_v_correcta,
+                    "orden": 1,
+                },
+                {
+                    "texto": "Falso",
+                    "es_correcta": 1 - es_v_correcta,
+                    "orden": 2,
+                },
+            ]
+        else:
+            for i in range(self.opciones_list.count()):
+                item = self.opciones_list.item(i)
+                opt_data = item.data(Qt.ItemDataRole.UserRole)
+                if opt_data:
+                    opt_data["orden"] = i + 1
+                    opciones.append(opt_data)
 
         data = {
             "pregunta": self.pregunta_input.toPlainText().strip(),
-            "tipo": self.tipo_combo.currentText(),
+            "tipo": tipo,
             "estado": self.estado_combo.currentText(),
             "opciones": opciones,
         }
+
+        if res_correcta:
+            data["respuesta_correcta"] = res_correcta
 
         if self.is_evaluation:
             # Por defecto asignamos 1.0 para evitar el error 422 (min 0.5) 
@@ -528,8 +566,27 @@ class ExercisesView(QWidget):
         title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
         title.setStyleSheet("color: #2c3e50;")
 
+        self.add_ejercicio_btn = QPushButton("➕ Nuevo Ejercicio")
+        self.add_ejercicio_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """
+        )
+        self.add_ejercicio_btn.clicked.connect(self.agregar_ejercicio)
+
         header_layout.addWidget(title)
         header_layout.addStretch()
+        header_layout.addWidget(self.add_ejercicio_btn)
 
         layout.addLayout(header_layout)
 
@@ -890,6 +947,36 @@ class ExercisesView(QWidget):
             self.table.setCellWidget(row, 4, acciones)
 
         self.table.setUpdatesEnabled(True)
+
+    def agregar_ejercicio(self):
+        if not self.modulo_actual or not self.leccion_actual:
+            QMessageBox.warning(
+                self, "Aviso", "Primero debe seleccionar un módulo y una lección."
+            )
+            return
+
+        dialog = ExerciseDialog(
+            self.api_client,
+            self.modulo_actual.get("id"),
+            self.leccion_actual.get("id"),
+        )
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            data = dialog.get_data()
+            result = self.api_client.create_ejercicio(
+                self.modulo_actual.get("id"),
+                self.leccion_actual.get("id"),
+                data,
+            )
+
+            if result["success"]:
+                self.load_ejercicios(
+                    self.modulo_actual.get("id"),
+                    self.leccion_actual.get("id"),
+                    force_refresh=True,
+                )
+            else:
+                QMessageBox.critical(self, "Error", f"Error al crear: {result.get('error')}")
 
     def editar_ejercicio(self, ejercicio):
         if not self.modulo_actual or not self.leccion_actual:
