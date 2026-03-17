@@ -841,10 +841,33 @@ class LessonsView(QWidget):
             else:
                 self.modulos = []
 
+            current_modulo_id = self.modulo_combo.currentData()
+
+            self.modulo_combo.blockSignals(True)
             self.modulo_combo.clear()
             self.modulo_combo.addItem("Seleccione un módulo", None)
-            for m in self.modulos:
+            new_index = 0
+            for i, m in enumerate(self.modulos):
                 self.modulo_combo.addItem(m.get("titulo"), m.get("id"))
+                if current_modulo_id == m.get("id"):
+                    new_index = i + 1
+            self.modulo_combo.setCurrentIndex(new_index)
+            self.modulo_combo.blockSignals(False)
+
+            # Si el módulo seleccionado ya no existe, volver al placeholder
+            if new_index == 0 and current_modulo_id is not None:
+                self.modulo_actual = None
+                self.lecciones = []
+                self.stack.setCurrentIndex(0)
+                if hasattr(self, "new_lesson_btn"):
+                    self.new_lesson_btn.setEnabled(False)
+
+    def _on_data_changed(self, data_type: str):
+        """Manejador para actualizaciones en tiempo real"""
+        if data_type == "modulos":
+            self.load_modulos()
+        elif data_type == "lecciones" and self.modulo_actual:
+            self.load_lecciones(self.modulo_actual.get("id"), force_refresh=True)
 
     def cambiar_modulo(self, index):
         """Cambiar módulo seleccionado"""

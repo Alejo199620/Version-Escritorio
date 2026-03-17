@@ -741,15 +741,26 @@ class ExercisesView(QWidget):
                 else data.get("data", []) if isinstance(data, dict) else []
             )
 
+            current_modulo_id = self.modulo_combo.currentData()
+
             self.modulo_combo.setUpdatesEnabled(False)
+            self.modulo_combo.blockSignals(True)
             self.modulo_combo.clear()
             self.modulo_combo.addItem("Seleccione un módulo", None)
-            for modulo in self.modulos:
+            
+            new_index = 0
+            for i, modulo in enumerate(self.modulos):
                 self.modulo_combo.addItem(f"{modulo.get('titulo')}", modulo.get("id"))
+                if current_modulo_id == modulo.get("id"):
+                    new_index = i + 1
+
+            self.modulo_combo.setCurrentIndex(new_index)
+            self.modulo_combo.blockSignals(False)
             self.modulo_combo.setUpdatesEnabled(True)
 
-            self.leccion_combo.clear()
-            self.leccion_combo.addItem("Primero seleccione un módulo", None)
+            if new_index == 0:
+                self.leccion_combo.clear()
+                self.leccion_combo.addItem("Primero seleccione un módulo", None)
         else:
             QMessageBox.warning(
                 self, "Error", f"Error al cargar módulos: {result.get('error')}"
@@ -1034,14 +1045,15 @@ class ExercisesView(QWidget):
 
     def _on_data_changed(self, data_type: str):
         """Manejador para actualizaciones en tiempo real"""
-        if data_type in ["ejercicios", "lecciones", "modulos"]:
+        if data_type == "modulos":
+            self.load_modulos()
+
+        if data_type in ["ejercicios", "lecciones"]:
             if self.modulo_actual and self.leccion_actual:
                 self.load_ejercicios(
                     self.modulo_actual.get("id"),
                     self.leccion_actual.get("id"),
                     force_refresh=True,
                 )
-            elif data_type == "modulos":
-                self.load_modulos()
             elif data_type == "lecciones" and self.modulo_actual:
                 self.cambiar_modulo(self.modulo_combo.currentIndex())

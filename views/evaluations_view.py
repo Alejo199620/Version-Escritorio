@@ -481,13 +481,26 @@ class EvaluationsView(QWidget):
             else:
                 self.modulos = []
 
+            current_modulo_id = self.modulo_combo.currentData()
+
+            self.modulo_combo.blockSignals(True)
             self.modulo_combo.clear()
             self.modulo_combo.addItem("Seleccione un módulo", None)
-            for modulo in self.modulos:
+            new_index = 0
+            for i, modulo in enumerate(self.modulos):
                 self.modulo_combo.addItem(f"{modulo.get('titulo')}", modulo.get("id"))
+                if current_modulo_id == modulo.get("id"):
+                    new_index = i + 1
+            self.modulo_combo.setCurrentIndex(new_index)
+            self.modulo_combo.blockSignals(False)
 
-            self.stack.setCurrentIndex(0)
-            self.new_question_btn.setEnabled(False)
+            # Si el módulo seleccionado ya no existe, volver al placeholder
+            if new_index == 0 and current_modulo_id is not None:
+                self.modulo_actual = None
+                self.evaluacion_actual = None
+                self.preguntas = []
+                self.stack.setCurrentIndex(0)
+                self.new_question_btn.setEnabled(False)
         else:
             QMessageBox.warning(
                 self, "Error", f"Error al cargar módulos: {result.get('error')}"
@@ -846,11 +859,11 @@ class EvaluationsView(QWidget):
 
     def _on_data_changed(self, data_type: str):
         """Manejador para actualizaciones en tiempo real"""
-        if data_type in ["evaluaciones", "modulos"]:
-            if self.modulo_actual:
-                self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
-            elif data_type == "modulos":
-                self.load_modulos()
+        if data_type == "modulos":
+            self.load_modulos()
+
+        if data_type in ["evaluaciones"] and self.modulo_actual:
+            self.load_evaluacion(self.modulo_actual.get("id"), force_refresh=True)
 
     def _on_evaluaciones_changed(self):
         """Manejador directo para cambios en evaluaciones"""

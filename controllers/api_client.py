@@ -196,14 +196,15 @@ class APIClient(QObject):
 
     # ============= MÉTODOS DE CACHÉ ULTRA RÁPIDOS =============
     def _get_cache_key(self, endpoint: str, params: Dict = None) -> str:
-        """Generar clave ULTRA RÁPIDA"""
+        """Generar clave con prefijo de endpoint para poder invalidar por tipo"""
         if params:
-            # Usar repr() que es más rápido que json.dumps
             params_str = repr(sorted(params.items())) if params else ""
         else:
             params_str = ""
         key_str = f"{endpoint}:{params_str}"
-        return hashlib.md5(key_str.encode()).hexdigest()
+        hash_part = hashlib.md5(key_str.encode()).hexdigest()
+        # Prefix with endpoint so invalidation can match by path substring
+        return f"{endpoint}|{hash_part}"
 
     def _get_from_cache(self, key: str, cache_type: str = None) -> Optional[Any]:
         """Obtener de caché - ULTRA RÁPIDO"""
@@ -272,15 +273,23 @@ class APIClient(QObject):
 
     # ============= INVALIDACIÓN DE CACHÉ ULTRA RÁPIDA =============
     def invalidate_cache_type(self, cache_type: str):
-        """Invalidar caché - ULTRA RÁPIDO"""
-        # Limpiar solo las claves relevantes
-        keys_to_delete = []
-        cache_type_lower = cache_type.lower()
+        """Invalidar caché por tipo - busca por prefijo de endpoint"""
+        # Mapéo de tipo -> fragmento de endpoint para buscar en la clave
+        endpoint_map = {
+            "modulos": "/admin/modulos",
+            "lecciones": "/admin/modulos",   # comparte base path
+            "ejercicios": "/admin/modulos",  # comparte base path
+            "evaluaciones": "/admin/modulos",# comparte base path
+            "usuarios": "/admin/usuarios",
+            "categorias": "/admin/categorias",
+            "dashboard": "/admin/dashboard",
+        }
+        search_fragment = endpoint_map.get(cache_type, cache_type)
 
-        for key in list(self.cache.keys()):
-            if cache_type_lower in key.lower():
-                keys_to_delete.append(key)
-
+        keys_to_delete = [
+            k for k in list(self.cache.keys())
+            if search_fragment in k
+        ]
         for key in keys_to_delete:
             del self.cache[key]
 
