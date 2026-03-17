@@ -47,6 +47,12 @@ class EvaluationConfigDialog(QDialog):
         self.config_data = config_data
         self.setWindowTitle("Configuración de Evaluación")
         self.setMinimumSize(500, 550)
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.setup_ui()
 
         if config_data:

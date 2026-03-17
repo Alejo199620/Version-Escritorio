@@ -55,7 +55,14 @@ class ImageResizeDialog(QDialog):
     def __init__(self, current_w, current_h, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Redimensionar Imagen")
-        self.setFixedSize(320, 180)
+        self.setMinimumSize(320, 180)
+        self.resize(320, 180)
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.ratio = current_w / current_h if current_h > 0 else 1
         self.setStyleSheet("""
             QDialog { background-color: #ffffff; }

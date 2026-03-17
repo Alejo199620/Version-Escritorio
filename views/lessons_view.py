@@ -167,6 +167,12 @@ class LessonDialog(QDialog):
         
         self.setWindowTitle("Editar Lección" if lesson_data else "Nueva Lección")
         self.setMinimumSize(1000, 800)
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.setup_ui()
 
         if lesson_data:

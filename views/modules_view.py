@@ -1238,6 +1238,12 @@ class CategoryManagementDialog(QDialog):
         self.api_client = api_client
         self.setWindowTitle("Gestionar Categorías")
         self.setMinimumSize(600, 500)
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self._setup_ui()
         self._load_categorias()
 

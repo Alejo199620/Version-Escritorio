@@ -265,11 +265,8 @@ class LoginWindow(QWidget):
         super().__init__()
         self.api_client = api_client
         self.setWindowTitle("Varchate Admin - Login")
-        self.setFixedSize(800, 600)
-
-        #  QUITAR BORDES DE WINDOWS
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setMinimumSize(800, 600)
+        self.resize(800, 600)
 
         # Variables para arrastrar la ventana
         self.drag_position = None
@@ -317,12 +314,10 @@ class LoginWindow(QWidget):
         # Contenedor principal
         main_container = QFrame()
         main_container.setObjectName("mainContainer")
-        main_container.setFixedSize(760, 520)
         main_container.setStyleSheet(
             """
             QFrame#mainContainer {
                 background-color: white;
-                border-radius: 25px;
                 position: relative;
             }
         """
@@ -333,88 +328,6 @@ class LoginWindow(QWidget):
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(0)
 
-        #  BARRA DE TÍTULO PERSONALIZADA - MODIFICADA
-        title_bar = QWidget()
-        title_bar.setObjectName("titleBar")
-        title_bar.setFixedHeight(40)
-        title_bar.setStyleSheet(
-            """
-            QWidget#titleBar {
-                background-color: #2c3e50;  /* Azul oscuro pero no muy oscuro */
-                border-top-left-radius: 25px;
-                border-top-right-radius: 25px;
-            }
-            QWidget#titleBar:hover {
-                background-color: #34495e;  /* Un tono más claro al hover */
-            }
-        """
-        )
-
-        title_layout = QHBoxLayout(title_bar)
-        title_layout.setContentsMargins(15, 0, 15, 0)
-        title_layout.setSpacing(8)
-
-        # Título de la ventana - AHORA BLANCO
-        window_title = QLabel("Bienvenido a Varchate - Admin")
-        window_title.setStyleSheet(
-            """
-            QLabel {
-                color: white;  /* Texto blanco */
-                font-weight: bold;
-                font-size: 20px;
-            }
-        """
-        )
-        title_layout.addWidget(window_title)
-
-        title_layout.addStretch()
-
-        # Botón minimizar - MODIFICADO
-        self.min_btn = QPushButton("─")
-        self.min_btn.setFixedSize(30, 30)
-        self.min_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: transparent;
-                color: white;  /* Texto blanco */
-                border: none;
-                font-size: 16px;
-                font-weight: bold;
-                border-radius: 15px;
-            }
-            QPushButton:hover {
-                background-color: #34495e;  /* Azul más claro al hover */
-                color: white;
-            }
-        """
-        )
-        self.min_btn.clicked.connect(self.showMinimized)
-        title_layout.addWidget(self.min_btn)
-
-        # Botón cerrar - MODIFICADO
-        self.close_btn = QPushButton("✕")
-        self.close_btn.setFixedSize(30, 30)
-        self.close_btn.setStyleSheet(
-            """
-            QPushButton {
-                background-color: transparent;
-                color: white;  /* Texto blanco */
-                border: none;
-                font-size: 14px;
-                font-weight: bold;
-                border-radius: 15px;
-            }
-            QPushButton:hover {
-                background-color: #e74c3c;  /* Rojo al hover (se mantiene) */
-                color: white;
-            }
-        """
-        )
-        self.close_btn.clicked.connect(self.close)
-        title_layout.addWidget(self.close_btn)
-
-        container_layout.addWidget(title_bar)
-
         # Contenido (tu HBox con left_panel y right_panel)
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -423,13 +336,10 @@ class LoginWindow(QWidget):
         # PANEL IZQUIERDO - SOLO IMAGEN
         left_panel = QFrame()
         left_panel.setObjectName("leftPanel")
-        left_panel.setFixedWidth(340)
         left_panel.setStyleSheet(
             """
             QFrame#leftPanel {
                 background-color: #4361ee;
-                border-top-left-radius: 0px;
-                border-bottom-left-radius: 25px;
             }
             """
         )
@@ -442,7 +352,8 @@ class LoginWindow(QWidget):
         # GIF en el panel izquierdo - OCUPA TODO
         self.left_cat = QLabel()
         self.left_cat.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.left_cat.setFixedSize(340, 470)  # Mismo tamaño que el panel
+        self.left_cat.setMinimumSize(340, 470)
+        self.left_cat.setScaledContents(True)
 
         cat_path = resource_path(os.path.join("assets", "login_cat.png"))
         left_movie = QMovie(cat_path)
@@ -469,8 +380,6 @@ class LoginWindow(QWidget):
             """
             QFrame#rightPanel {
                 background-color: #f0f8ff;  /* Azul muy clarito - Alice Blue */
-                border-top-right-radius: 0px;
-                border-bottom-right-radius: 25px;
             }
         """
         )
@@ -581,13 +490,13 @@ class LoginWindow(QWidget):
         right_layout.addWidget(self.login_btn)
 
         # Unir paneles al content_layout
-        content_layout.addWidget(left_panel)
-        content_layout.addWidget(right_panel)
-
+        content_layout.addWidget(left_panel, 4)
+        content_layout.addWidget(right_panel, 6)
+ 
         container_layout.addLayout(content_layout)
 
         # Agregar contenedor principal al layout
-        main_layout.addWidget(main_container, 0, Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(main_container, 1)
 
         # Crear toast notification como hijo del main_container
         self.toast = ToastNotification(main_container)
@@ -598,7 +507,7 @@ class LoginWindow(QWidget):
 
         self.email_input.setFocus()
 
-    #  MÉTODOS PARA ARRASTRAR LA VENTANA
+    # Removed custom drag logic as standard OS title bar handles it now
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             # Solo arrastrar si se hace clic en la barra de título

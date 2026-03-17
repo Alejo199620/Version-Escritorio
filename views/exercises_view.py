@@ -44,10 +44,19 @@ class OpcionDialog(QDialog):
 
         # Tamaño según tipo
         if tipo == "arrastrar_soltar":
-            self.setFixedSize(450, 300)
+            self.setMinimumSize(450, 300)
+            self.resize(450, 300)
             self.setWindowTitle("Agregar Par (Término → Definición)")
         else:
-            self.setFixedSize(400, 200)
+            self.setMinimumSize(400, 200)
+            self.resize(400, 200)
+
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
 
         self.setup_ui()
 
@@ -214,6 +223,12 @@ class ExerciseDialog(QDialog):
             "Pregunta de Evaluación" if is_evaluation else "Ejercicio de Lección"
         )
         self.setMinimumSize(750, 700)
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.setup_ui()
 
         if exercise_data:

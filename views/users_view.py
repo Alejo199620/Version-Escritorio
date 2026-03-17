@@ -72,7 +72,14 @@ class AvatarSelector(QDialog):
         self.selected_avatar = current_avatar
         self.avatars = []
         self.setWindowTitle("Seleccionar Avatar")
-        self.setFixedSize(550, 600)
+        self.setMinimumSize(550, 600)
+        self.resize(550, 600)
+        self.setWindowFlags(
+            self.windowFlags() 
+            | Qt.WindowType.WindowMinimizeButtonHint 
+            | Qt.WindowType.WindowMaximizeButtonHint 
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.setup_ui()
         self.cargar_avatars()
 
@@ -521,7 +528,7 @@ class UserDialog(QDialog):
         self.user_data = user_data
         self.selected_avatar = None  # Puede ser Dict
         self.setWindowTitle("Editar Usuario" if user_data else "Nuevo Usuario")
-        self.setFixedWidth(650)
+        self.setMinimumWidth(650)
         self.setMinimumHeight(600)
         self.resize(650, 600)
         self.setModal(True)
