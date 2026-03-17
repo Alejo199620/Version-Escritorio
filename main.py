@@ -2,8 +2,88 @@ import sys
 import os
 from dotenv import load_dotenv
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QFontDatabase
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QFontDatabase, QPalette, QColor
 from PyQt6.QtCore import Qt
+
+
+def apply_light_palette(app: QApplication):
+    """Fuerza siempre el tema claro, sin importar la configuración del sistema."""
+    palette = QPalette()
+
+    # --- Colores base blancos/claros ---
+    white   = QColor("#ffffff")
+    light   = QColor("#f8f9fa")  # fondo de ventanas/widgets
+    mid     = QColor("#e9ecef")
+    dark    = QColor("#dee2e6")
+    text    = QColor("#1e293b")  # texto principal
+    dimtext = QColor("#64748b")  # texto secundario/deshabilitado
+
+    # --- Selección: azul claro con texto negro ---
+    highlight     = QColor("#bfdbfe")  # azul claro suave
+    highlightText = QColor("#1e293b")  # texto oscuro sobre azul
+
+    # Window / base
+    palette.setColor(QPalette.ColorRole.Window,          light)
+    palette.setColor(QPalette.ColorRole.WindowText,      text)
+    palette.setColor(QPalette.ColorRole.Base,            white)
+    palette.setColor(QPalette.ColorRole.AlternateBase,   light)
+    palette.setColor(QPalette.ColorRole.ToolTipBase,     white)
+    palette.setColor(QPalette.ColorRole.ToolTipText,     text)
+
+    # Text
+    palette.setColor(QPalette.ColorRole.Text,            text)
+    palette.setColor(QPalette.ColorRole.PlaceholderText, dimtext)
+    palette.setColor(QPalette.ColorRole.BrightText,      text)
+
+    # Buttons
+    palette.setColor(QPalette.ColorRole.Button,          light)
+    palette.setColor(QPalette.ColorRole.ButtonText,      text)
+
+    # Borders / mid tones
+    palette.setColor(QPalette.ColorRole.Mid,             mid)
+    palette.setColor(QPalette.ColorRole.Midlight,        mid)
+    palette.setColor(QPalette.ColorRole.Dark,            dark)
+    palette.setColor(QPalette.ColorRole.Shadow,          QColor("#adb5bd"))
+    palette.setColor(QPalette.ColorRole.Light,           white)
+
+    # Selection (azul claro, texto oscuro legible)
+    palette.setColor(QPalette.ColorRole.Highlight,       highlight)
+    palette.setColor(QPalette.ColorRole.HighlightedText, highlightText)
+
+    # Links
+    palette.setColor(QPalette.ColorRole.Link,            QColor("#2563eb"))
+    palette.setColor(QPalette.ColorRole.LinkVisited,     QColor("#7c3aed"))
+
+    # Disabled state (apenas más tenue)
+    for role in [
+        QPalette.ColorRole.WindowText,
+        QPalette.ColorRole.Text,
+        QPalette.ColorRole.ButtonText,
+    ]:
+        palette.setColor(QPalette.ColorGroup.Disabled, role, dimtext)
+
+    app.setPalette(palette)
+
+    # Refuerzo a nivel global de stylesheet para tablas, listas e inputs
+    app.setStyleSheet("""
+        QTableView::item:selected,
+        QListWidget::item:selected,
+        QListView::item:selected,
+        QTreeView::item:selected {
+            background-color: #bfdbfe;
+            color: #1e293b;
+        }
+        QTableView::item:selected:active,
+        QListWidget::item:selected:active,
+        QListView::item:selected:active {
+            background-color: #93c5fd;
+            color: #1e293b;
+        }
+        QComboBox QAbstractItemView::item:selected {
+            background-color: #bfdbfe;
+            color: #1e293b;
+        }
+    """)
 
 
 # === AGREGAR ESTA FUNCIÓN AL INICIO ===
@@ -50,6 +130,9 @@ class AdminApplication:
     def __init__(self):
         self.app = QApplication(sys.argv)
         self.app.setStyle("Fusion")
+
+        # Forzar siempre tema claro con selección azul visible
+        apply_light_palette(self.app)
 
         # Registrar fuentes personalizadas
         load_custom_fonts()
