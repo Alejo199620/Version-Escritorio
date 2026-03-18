@@ -44,12 +44,31 @@ class OpcionDialog(QDialog):
 
         # Tamaño según tipo
         if tipo == "arrastrar_soltar":
-            self.setMinimumSize(450, 300)
-            self.resize(450, 300)
+            self.setMinimumSize(480, 320)
+            self.resize(480, 320)
             self.setWindowTitle("Agregar Par (Término → Definición)")
         else:
-            self.setMinimumSize(400, 200)
-            self.resize(400, 200)
+            self.setMinimumSize(450, 260)
+            self.resize(450, 260)
+
+        self.setStyleSheet(
+            f"""
+            QDialog {{ background-color: white; }}
+            QLabel {{ color: #1e293b; font-size: 13px; }}
+            QLineEdit {{ 
+                padding: 10px; 
+                border: 2px solid #e2e8f0; 
+                border-radius: 8px; 
+                background-color: #f8fafc;
+                font-size: 13px;
+            }}
+            QLineEdit:focus {{
+                border-color: {StyleHelper.PRIMARY_COLOR};
+                background-color: white;
+            }}
+            QCheckBox {{ spacing: 10px; font-weight: bold; color: #27ae60; }}
+        """
+        )
 
         self.setWindowFlags(
             self.windowFlags() 
@@ -62,8 +81,8 @@ class OpcionDialog(QDialog):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(25, 25, 25, 25)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         if self.tipo == "arrastrar_soltar":
             # Instrucciones
@@ -172,11 +191,23 @@ class OpcionDialog(QDialog):
             layout.addWidget(self.texto_input)
 
         # Botones
+        layout.addStretch()
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+        
+        # Estilo de botones para que coincidan con el resto de la app
+        buttons.setStyleSheet(f"""
+            QPushButton {{ 
+                padding: 10px 25px; 
+                border-radius: 8px; 
+                font-weight: bold;
+                font-size: 13px;
+            }}
+        """)
+        
         layout.addWidget(buttons)
 
     def get_data(self):
